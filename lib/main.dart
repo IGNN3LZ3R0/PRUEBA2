@@ -1,5 +1,5 @@
-// lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'core/supabase_client.dart';
 import 'core/theme.dart';
 import 'features/auth/presentation/login_page.dart';
@@ -8,7 +8,10 @@ import 'features/pets/presentation/home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializar Supabase
+  // 1. Cargar variables de entorno
+  await dotenv.load(fileName: ".env");
+
+  // 2. Inicializar Supabase
   await SupabaseClientManager.initialize();
 
   runApp(const MyApp());

@@ -22,7 +22,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authRepository = AuthRepository();
-  
+
   bool _isLoading = false;
   String _selectedUserType = AppConstants.userTypeAdoptante;
 
@@ -69,7 +69,7 @@ class _RegisterPageState extends State<RegisterPage> {
             backgroundColor: AppTheme.approved,
           ),
         );
-        
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomePage()),
         );
@@ -117,16 +117,16 @@ class _RegisterPageState extends State<RegisterPage> {
                     'Crear Cuenta',
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
-                  
+
                   const SizedBox(height: 8),
-                  
+
                   Text(
                     'Únete a PetAdopt y ayuda a las mascotas',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Tipo de usuario
                   InkWell(
                     onTap: _selectUserType,
@@ -162,7 +162,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                   ),
                                 ),
                                 Text(
-                                  _selectedUserType == AppConstants.userTypeAdoptante
+                                  _selectedUserType ==
+                                          AppConstants.userTypeAdoptante
                                       ? AppStrings.adoptante
                                       : AppStrings.refugio,
                                   style: const TextStyle(
@@ -183,9 +184,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Nombre completo
                   CustomTextField(
                     label: 'NOMBRE COMPLETO',
@@ -199,9 +200,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       return null;
                     },
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Email
                   CustomTextField(
                     label: AppStrings.email,
@@ -219,9 +220,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       return null;
                     },
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Contraseña
                   CustomTextField(
                     label: AppStrings.password,
@@ -239,9 +240,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       return null;
                     },
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Confirmar contraseña
                   CustomTextField(
                     label: 'CONFIRMAR CONTRASEÑA',
@@ -259,18 +260,18 @@ class _RegisterPageState extends State<RegisterPage> {
                       return null;
                     },
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Botón registrarse
                   CustomButton(
                     text: 'Crear Cuenta',
                     onPressed: _handleRegister,
                     isLoading: _isLoading,
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Ya tienes cuenta
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

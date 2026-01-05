@@ -20,7 +20,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authRepository = AuthRepository();
-  
+
   bool _isLoading = false;
 
   @override
@@ -64,7 +64,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final user = await _authRepository.signInWithGoogle();
-      
+
       if (user != null && mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomePage()),
@@ -106,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 40),
-                  
+
                   // Logo
                   Container(
                     height: 100,
@@ -120,26 +120,26 @@ class _LoginPageState extends State<LoginPage> {
                       color: Colors.white,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Título
                   Text(
                     AppStrings.welcome,
                     style: Theme.of(context).textTheme.headlineLarge,
                     textAlign: TextAlign.center,
                   ),
-                  
+
                   const SizedBox(height: 8),
-                  
+
                   Text(
                     AppStrings.loginToContinue,
                     style: Theme.of(context).textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Email
                   CustomTextField(
                     label: AppStrings.email,
@@ -157,9 +157,9 @@ class _LoginPageState extends State<LoginPage> {
                       return null;
                     },
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Password
                   CustomTextField(
                     label: AppStrings.password,
@@ -177,9 +177,9 @@ class _LoginPageState extends State<LoginPage> {
                       return null;
                     },
                   ),
-                  
+
                   const SizedBox(height: 12),
-                  
+
                   // Olvidaste contraseña
                   Align(
                     alignment: Alignment.centerRight,
@@ -197,18 +197,18 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Botón Login
                   CustomButton(
                     text: AppStrings.login,
                     onPressed: _handleLogin,
                     isLoading: _isLoading,
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Divider
                   Row(
                     children: [
@@ -223,9 +223,9 @@ class _LoginPageState extends State<LoginPage> {
                       const Expanded(child: Divider()),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Google Sign In
                   CustomButton(
                     text: AppStrings.google,
@@ -235,9 +235,9 @@ class _LoginPageState extends State<LoginPage> {
                     icon: Icons.g_mobiledata,
                     isOutlined: true,
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Registro
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
