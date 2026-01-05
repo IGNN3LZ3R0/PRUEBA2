@@ -107,18 +107,14 @@ class PetRepository {
   /// Obtener detalle de una mascota específica
   Future<PetModel?> getPetDetail(String petId) async {
     try {
-      final response = await _supabase
-          .from(AppConstants.petsTable)
-          .select('''
+      final response = await _supabase.from(AppConstants.petsTable).select('''
             *,
             profiles!refugio_id (
               full_name,
               phone,
               address
             )
-          ''')
-          .eq('id', petId)
-          .single();
+          ''').eq('id', petId).single();
 
       final pet = PetModel.fromJson(response);
       if (response['profiles'] != null) {
@@ -142,9 +138,7 @@ class PetRepository {
           .eq('refugio_id', refugioId)
           .order('created_at', ascending: false);
 
-      return (response as List)
-          .map((json) => PetModel.fromJson(json))
-          .toList();
+      return (response as List).map((json) => PetModel.fromJson(json)).toList();
     } catch (e) {
       throw Exception('Error al obtener mascotas del refugio: $e');
     }
@@ -182,10 +176,7 @@ class PetRepository {
   /// Eliminar mascota
   Future<void> deletePet(String petId) async {
     try {
-      await _supabase
-          .from(AppConstants.petsTable)
-          .delete()
-          .eq('id', petId);
+      await _supabase.from(AppConstants.petsTable).delete().eq('id', petId);
     } catch (e) {
       throw Exception('Error al eliminar mascota: $e');
     }
@@ -258,7 +249,8 @@ class PetRepository {
   /// Subir imagen al storage de Supabase
   Future<String> uploadImage(File image, String petId) async {
     try {
-      final String fileName = '${petId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String fileName =
+          '${petId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final String filePath = '$petId/$fileName';
 
       await _supabase.storage
@@ -276,7 +268,8 @@ class PetRepository {
   }
 
   /// Subir múltiples imágenes
-  Future<List<String>> uploadMultipleImages(List<File> images, String petId) async {
+  Future<List<String>> uploadMultipleImages(
+      List<File> images, String petId) async {
     try {
       final List<String> uploadedUrls = [];
 
@@ -297,12 +290,12 @@ class PetRepository {
       // Extraer el path de la URL
       final uri = Uri.parse(imageUrl);
       final pathSegments = uri.pathSegments;
-      
+
       // El path está después de 'pet_images'
       final bucketIndex = pathSegments.indexOf(AppConstants.petImagesBucket);
       if (bucketIndex != -1 && bucketIndex < pathSegments.length - 1) {
         final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
-        
+
         await _supabase.storage
             .from(AppConstants.petImagesBucket)
             .remove([filePath]);
@@ -312,7 +305,7 @@ class PetRepository {
     }
   }
 
-  // ========== ESTADÍSTICAS (Para panel de refugio) ==========
+// ========== ESTADÍSTICAS (Para panel de refugio) ==========
 
   /// Obtener estadísticas del refugio
   Future<Map<String, int>> getRefugioStats(String refugioId) async {
@@ -320,25 +313,22 @@ class PetRepository {
       // Total de mascotas
       final totalPets = await _supabase
           .from(AppConstants.petsTable)
-          .select('id')
-          .eq('refugio_id', refugioId)
-          .count();
+          .select('id', const FetchOptions(count: CountOption.exact))
+          .eq('refugio_id', refugioId);
 
       // Mascotas disponibles
       final availablePets = await _supabase
           .from(AppConstants.petsTable)
-          .select('id')
+          .select('id', const FetchOptions(count: CountOption.exact))
           .eq('refugio_id', refugioId)
-          .eq('status', AppConstants.petAvailable)
-          .count();
+          .eq('status', AppConstants.petAvailable);
 
       // Mascotas adoptadas
       final adoptedPets = await _supabase
           .from(AppConstants.petsTable)
-          .select('id')
+          .select('id', const FetchOptions(count: CountOption.exact))
           .eq('refugio_id', refugioId)
-          .eq('status', AppConstants.petAdopted)
-          .count();
+          .eq('status', AppConstants.petAdopted);
 
       return {
         'total': totalPets.count ?? 0,
