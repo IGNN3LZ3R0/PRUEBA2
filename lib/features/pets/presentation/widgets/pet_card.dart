@@ -50,17 +50,20 @@ class PetCard extends StatelessWidget {
                             placeholder: (context, url) => Container(
                               color: AppTheme.background,
                               child: const Center(
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               ),
                             ),
                             errorWidget: (context, url, error) => Container(
                               color: AppTheme.background,
-                              child: const Icon(Icons.pets, size: 50, color: AppTheme.textGrey),
+                              child: const Icon(Icons.pets,
+                                  size: 50, color: AppTheme.textGrey),
                             ),
                           )
                         : Container(
                             color: AppTheme.background,
-                            child: const Icon(Icons.pets, size: 50, color: AppTheme.textGrey),
+                            child: const Icon(Icons.pets,
+                                size: 50, color: AppTheme.textGrey),
                           ),
                   ),
                   // Badge de especie
@@ -68,9 +71,11 @@ class PetCard extends StatelessWidget {
                     top: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: pet.isDog ? AppTheme.primary : AppTheme.secondary,
+                        color:
+                            pet.isDog ? AppTheme.primary : AppTheme.secondary,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -140,7 +145,8 @@ class PetCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         _InfoChip(
-                          icon: pet.gender == 'Macho' ? Icons.male : Icons.female,
+                          icon:
+                              pet.gender == 'Macho' ? Icons.male : Icons.female,
                           label: pet.gender,
                         ),
                       ],
