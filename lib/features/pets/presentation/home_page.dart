@@ -152,7 +152,7 @@ class _HomePageState extends State<HomePage> {
             ),
           PopupMenuButton(
             icon: const Icon(Icons.person),
-            itemBuilder: (context) => [
+            itemBuilder: (context) => <PopupMenuEntry>[
               PopupMenuItem(
                 child: Text(_currentUser?.fullName ?? 'Usuario'),
                 enabled: false,
@@ -274,7 +274,7 @@ class _HomePageState extends State<HomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.pets,
-                size: 80, color: AppTheme.textGrey.withValues(alpha: 0.3)),
+                size: 80, color: AppTheme.textGrey.withOpacity(0.3)),
             const SizedBox(height: 16),
             Text(
               'No hay mascotas disponibles',
@@ -334,7 +334,7 @@ class _FilterChip extends StatelessWidget {
           border: Border.all(
             color: isSelected
                 ? AppTheme.primary
-                : AppTheme.textGrey.withValues(alpha: 0.3),
+                : AppTheme.textGrey.withOpacity(0.3),
           ),
         ),
         child: Text(

@@ -246,6 +246,44 @@ class PetRepository {
     }
   }
 
+  /// Eliminar imagen del storage
+  Future<void> deleteImage(String imageUrl) async {
+    try {
+      // Extraer el path de la URL de forma robusta (soporta URLs públicas y otras variantes)
+      final uri = Uri.parse(imageUrl);
+      final segments = uri.pathSegments;
+
+      String? filePath;
+
+      // Caso estándar: /.../pet_images/<petId>/<file>
+      final bucketIndex = segments.indexOf(AppConstants.petImagesBucket);
+      if (bucketIndex != -1 && bucketIndex < segments.length - 1) {
+        filePath = segments.sublist(bucketIndex + 1).join('/');
+      } else {
+        // Fallback: algunas URLs públicas incluyen "public" antes del bucket
+        final publicIndex = segments.indexOf('public');
+        if (publicIndex != -1 && publicIndex + 1 < segments.length) {
+          final possibleBucketIndex = publicIndex + 1;
+          if (segments[possibleBucketIndex] == AppConstants.petImagesBucket &&
+              possibleBucketIndex < segments.length - 1) {
+            filePath = segments.sublist(possibleBucketIndex + 1).join('/');
+          }
+        }
+      }
+
+      if (filePath == null || filePath.isEmpty) {
+        throw Exception(
+            'No se pudo extraer la ruta del archivo desde la URL: $imageUrl');
+      }
+
+      await _supabase.storage
+          .from(AppConstants.petImagesBucket)
+          .remove([filePath]);
+    } catch (e) {
+      throw Exception('Error al eliminar imagen: $e');
+    }
+  }
+
   /// Subir imagen al storage de Supabase
   Future<String> uploadImage(File image, String petId) async {
     try {
@@ -253,13 +291,20 @@ class PetRepository {
           '${petId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final String filePath = '$petId/$fileName';
 
+      // Subir el archivo
       await _supabase.storage
           .from(AppConstants.petImagesBucket)
           .upload(filePath, image);
 
+      // Obtener URL pública y validar
       final String publicUrl = _supabase.storage
           .from(AppConstants.petImagesBucket)
           .getPublicUrl(filePath);
+
+      if (publicUrl.isEmpty) {
+        throw Exception(
+            'No se pudo obtener la URL pública para la imagen subida.');
+      }
 
       return publicUrl;
     } catch (e) {
@@ -284,27 +329,6 @@ class PetRepository {
     }
   }
 
-  /// Eliminar imagen del storage
-  Future<void> deleteImage(String imageUrl) async {
-    try {
-      // Extraer el path de la URL
-      final uri = Uri.parse(imageUrl);
-      final pathSegments = uri.pathSegments;
-
-      // El path está después de 'pet_images'
-      final bucketIndex = pathSegments.indexOf(AppConstants.petImagesBucket);
-      if (bucketIndex != -1 && bucketIndex < pathSegments.length - 1) {
-        final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
-
-        await _supabase.storage
-            .from(AppConstants.petImagesBucket)
-            .remove([filePath]);
-      }
-    } catch (e) {
-      throw Exception('Error al eliminar imagen: $e');
-    }
-  }
-
 // ========== ESTADÍSTICAS (Para panel de refugio) ==========
 
   /// Obtener estadísticas del refugio
@@ -313,27 +337,27 @@ class PetRepository {
       // Total de mascotas
       final totalPets = await _supabase
           .from(AppConstants.petsTable)
-          .select('id', const FetchOptions(count: CountOption.exact))
+          .select('id')
           .eq('refugio_id', refugioId);
 
       // Mascotas disponibles
       final availablePets = await _supabase
           .from(AppConstants.petsTable)
-          .select('id', const FetchOptions(count: CountOption.exact))
+          .select('id')
           .eq('refugio_id', refugioId)
           .eq('status', AppConstants.petAvailable);
 
       // Mascotas adoptadas
       final adoptedPets = await _supabase
           .from(AppConstants.petsTable)
-          .select('id', const FetchOptions(count: CountOption.exact))
+          .select('id')
           .eq('refugio_id', refugioId)
           .eq('status', AppConstants.petAdopted);
 
       return {
-        'total': totalPets.count ?? 0,
-        'disponibles': availablePets.count ?? 0,
-        'adoptadas': adoptedPets.count ?? 0,
+        'total': (totalPets as List).length,
+        'disponibles': (availablePets as List).length,
+        'adoptadas': (adoptedPets as List).length,
       };
     } catch (e) {
       throw Exception('Error al obtener estadísticas: $e');

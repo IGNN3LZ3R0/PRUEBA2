@@ -23,7 +23,7 @@ class PetCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: Colors.black.withOpacity(0.08),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -82,7 +82,7 @@ class PetCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            pet.isDog ? Icons.pets : Icons.pet_supplies,
+                            Icons.pets,
                             color: Colors.white,
                             size: 14,
                           ),

@@ -126,26 +126,26 @@ class AdoptionRepository {
 
       final pending = await _supabase
           .from(AppConstants.adoptionRequestsTable)
-          .select('id', const FetchOptions(count: CountOption.exact))
+          .select('id')
           .eq(field, userId)
           .eq('status', AppConstants.statusPending);
 
       final approved = await _supabase
           .from(AppConstants.adoptionRequestsTable)
-          .select('id', const FetchOptions(count: CountOption.exact))
+          .select('id')
           .eq(field, userId)
           .eq('status', AppConstants.statusApproved);
 
       final rejected = await _supabase
           .from(AppConstants.adoptionRequestsTable)
-          .select('id', const FetchOptions(count: CountOption.exact))
+          .select('id')
           .eq(field, userId)
           .eq('status', AppConstants.statusRejected);
 
       return {
-        'pendientes': pending.count ?? 0,
-        'aprobadas': approved.count ?? 0,
-        'rechazadas': rejected.count ?? 0,
+        'pendientes': (pending as List).length,
+        'aprobadas': (approved as List).length,
+        'rechazadas': (rejected as List).length,
       };
     } catch (e) {
       throw Exception('Error al obtener estadísticas: $e');
