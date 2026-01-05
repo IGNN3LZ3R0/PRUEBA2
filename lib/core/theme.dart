@@ -1,4 +1,3 @@
-// lib/core/theme.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -26,7 +25,7 @@ class AppTheme {
         primary: primary,
         secondary: secondary,
         surface: surface,
-        background: background,
+        // background deprecated en Material 3, se usa scaffoldBackgroundColor
       ),
       scaffoldBackgroundColor: background,
       

@@ -1,12 +1,12 @@
-// lib/core/supabase_client.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SupabaseClientManager {
-  static const String supabaseUrl = 'TU_SUPABASE_URL';
-  static const String supabaseAnonKey = 'TU_SUPABASE_ANON_KEY';
+  // Cargar desde .env
+  static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
+  static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
   
   static SupabaseClientManager? _instance;
-  late final Supabase _supabase;
   
   SupabaseClientManager._();
   
@@ -16,9 +16,19 @@ class SupabaseClientManager {
   }
   
   static Future<void> initialize() async {
+    // Validar que las variables estén configuradas
+    if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+      throw Exception(
+        'SUPABASE_URL y SUPABASE_ANON_KEY deben estar configurados en .env'
+      );
+    }
+    
     await Supabase.initialize(
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
     );
   }
   
