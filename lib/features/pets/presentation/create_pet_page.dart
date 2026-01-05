@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/theme.dart';
-import '../../../core/constants.dart';
 import '../../../core/supabase_client.dart';
+import '../../../core/constants.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_textfield.dart';
 import '../../../shared/widgets/loading_widget.dart';
@@ -11,7 +11,7 @@ import '../data/pet_repository.dart';
 import '../data/models.dart';
 
 class CreatePetPage extends StatefulWidget {
-  final PetModel? pet; // Para edición
+  final PetModel? pet; // Si no es null, es edición
 
   const CreatePetPage({super.key, this.pet});
 
@@ -22,17 +22,16 @@ class CreatePetPage extends StatefulWidget {
 class _CreatePetPageState extends State<CreatePetPage> {
   final _formKey = GlobalKey<FormState>();
   final _petRepository = PetRepository();
-  final _uuid = const Uuid();
 
   // Controllers
   final _nameController = TextEditingController();
   final _breedController = TextEditingController();
   final _ageController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _healthController = TextEditingController();
+  final _healthStatusController = TextEditingController();
   final _specialNeedsController = TextEditingController();
 
-  // Valores seleccionables
+  // Valores seleccionados
   String _selectedSpecies = AppConstants.speciesDog;
   String _selectedGender = 'Macho';
   String _selectedSize = 'Mediano';
@@ -41,27 +40,26 @@ class _CreatePetPageState extends State<CreatePetPage> {
   bool _isSterilized = false;
   bool _hasMicrochip = false;
 
-  // Imágenes
   List<File> _selectedImages = [];
-  List<String> _existingImageUrls = [];
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.pet != null) {
-      _loadPetData(widget.pet!);
+      _loadPetData();
     }
   }
 
-  void _loadPetData(PetModel pet) {
+  void _loadPetData() {
+    final pet = widget.pet!;
     _nameController.text = pet.name;
     _breedController.text = pet.breed ?? '';
     _ageController.text = pet.age.toString();
     _descriptionController.text = pet.description;
-    _healthController.text = pet.healthStatus;
+    _healthStatusController.text = pet.healthStatus;
     _specialNeedsController.text = pet.specialNeeds ?? '';
-    
+
     _selectedSpecies = pet.species;
     _selectedGender = pet.gender;
     _selectedSize = pet.size;
@@ -69,7 +67,6 @@ class _CreatePetPageState extends State<CreatePetPage> {
     _isDewormed = pet.isDewormed;
     _isSterilized = pet.isSterilized;
     _hasMicrochip = pet.hasMicrochip;
-    _existingImageUrls = List.from(pet.imageUrls);
   }
 
   @override
@@ -78,7 +75,7 @@ class _CreatePetPageState extends State<CreatePetPage> {
     _breedController.dispose();
     _ageController.dispose();
     _descriptionController.dispose();
-    _healthController.dispose();
+    _healthStatusController.dispose();
     _specialNeedsController.dispose();
     super.dispose();
   }
@@ -86,11 +83,17 @@ class _CreatePetPageState extends State<CreatePetPage> {
   Future<void> _pickImages() async {
     try {
       final images = await _petRepository.pickMultipleImages();
-      setState(() {
-        _selectedImages.addAll(images);
-      });
+      if (images.isNotEmpty) {
+        setState(() {
+          _selectedImages.addAll(images);
+        });
+      }
     } catch (e) {
-      _showError('Error al seleccionar imágenes: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al seleccionar imágenes: $e')),
+        );
+      }
     }
   }
 
@@ -103,64 +106,62 @@ class _CreatePetPageState extends State<CreatePetPage> {
         });
       }
     } catch (e) {
-      _showError('Error al tomar foto: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al tomar foto: $e')),
+        );
+      }
     }
   }
 
-  void _removeNewImage(int index) {
+  void _removeImage(int index) {
     setState(() {
       _selectedImages.removeAt(index);
     });
   }
 
-  void _removeExistingImage(int index) {
-    setState(() {
-      _existingImageUrls.removeAt(index);
-    });
-  }
-
   Future<void> _savePet() async {
     if (!_formKey.currentState!.validate()) return;
-    
-    if (_selectedImages.isEmpty && _existingImageUrls.isEmpty) {
-      _showError('Debes agregar al menos una imagen');
+
+    if (_selectedImages.isEmpty && widget.pet == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes agregar al menos una imagen')),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final userId = SupabaseClientManager.instance.userId;
-      if (userId == null) throw Exception('Usuario no autenticado');
+      final userId = SupabaseClientManager.instance.userId!;
+      final petId = widget.pet?.id ?? const Uuid().v4();
 
-      final petId = widget.pet?.id ?? _uuid.v4();
-
-      // Subir nuevas imágenes
-      List<String> uploadedUrls = [];
+      // 1. Subir imágenes
+      List<String> imageUrls = [];
       if (_selectedImages.isNotEmpty) {
-        uploadedUrls = await _petRepository.uploadMultipleImages(
+        imageUrls = await _petRepository.uploadMultipleImages(
           _selectedImages,
           petId,
         );
+      } else if (widget.pet != null) {
+        imageUrls = widget.pet!.imageUrls;
       }
 
-      // Combinar URLs
-      final allImageUrls = [..._existingImageUrls, ...uploadedUrls];
-
-      final petData = PetModel(
+      // 2. Crear o actualizar mascota
+      final pet = PetModel(
         id: petId,
         refugioId: userId,
         name: _nameController.text.trim(),
         species: _selectedSpecies,
-        breed: _breedController.text.trim().isEmpty 
-            ? null 
+        breed: _breedController.text.trim().isEmpty
+            ? null
             : _breedController.text.trim(),
-        age: int.tryParse(_ageController.text) ?? 0,
+        age: int.parse(_ageController.text),
         gender: _selectedGender,
         size: _selectedSize,
         description: _descriptionController.text.trim(),
-        healthStatus: _healthController.text.trim(),
-        imageUrls: allImageUrls,
+        healthStatus: _healthStatusController.text.trim(),
+        imageUrls: imageUrls,
         isVaccinated: _isVaccinated,
         isDewormed: _isDewormed,
         isSterilized: _isSterilized,
@@ -168,39 +169,40 @@ class _CreatePetPageState extends State<CreatePetPage> {
         specialNeeds: _specialNeedsController.text.trim().isEmpty
             ? null
             : _specialNeedsController.text.trim(),
+        status: widget.pet?.status ?? AppConstants.petAvailable,
         createdAt: widget.pet?.createdAt ?? DateTime.now(),
       );
 
       if (widget.pet == null) {
-        await _petRepository.createPet(petData);
+        // Crear
+        await _petRepository.createPet(pet);
       } else {
-        await _petRepository.updatePet(petId, petData.toJson());
+        // Actualizar
+        await _petRepository.updatePet(petId, pet.toJson());
       }
 
       if (mounted) {
-        Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.pet == null 
-                ? '¡Mascota registrada exitosamente!' 
-                : '¡Mascota actualizada!'),
+            content: Text(widget.pet == null
+                ? '¡Mascota registrada exitosamente!'
+                : '¡Mascota actualizada exitosamente!'),
             backgroundColor: AppTheme.approved,
           ),
         );
+        Navigator.pop(context, true);
       }
     } catch (e) {
-      _showError('Error al guardar: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppTheme.rejected),
-    );
   }
 
   @override
@@ -213,7 +215,7 @@ class _CreatePetPageState extends State<CreatePetPage> {
         isLoading: _isLoading,
         message: 'Guardando...',
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
           child: Form(
             key: _formKey,
             child: Column(
@@ -223,109 +225,227 @@ class _CreatePetPageState extends State<CreatePetPage> {
                 _buildImageSection(),
                 const SizedBox(height: 24),
 
-                // Nombre
+                // Información básica
                 CustomTextField(
                   label: 'NOMBRE',
                   hint: 'Nombre de la mascota',
                   controller: _nameController,
-                  validator: (v) => v?.isEmpty ?? true ? 'Requerido' : null,
+                  prefixIcon: Icons.pets,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'El nombre es requerido';
+                    }
+                    return null;
+                  },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
                 // Especie
-                _buildDropdown(
+                const Text(
                   'ESPECIE',
-                  _selectedSpecies,
-                  [AppConstants.speciesDog, AppConstants.speciesCat],
-                  (v) => setState(() => _selectedSpecies = v!),
-                  (s) => s == AppConstants.speciesDog ? 'Perro' : 'Gato',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textGrey,
+                  ),
                 ),
-                const SizedBox(height: 16),
-
-                // Raza
-                CustomTextField(
-                  label: 'RAZA',
-                  hint: 'Opcional',
-                  controller: _breedController,
-                ),
-                const SizedBox(height: 16),
-
-                // Edad, Género, Tamaño
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
-                      child: CustomTextField(
-                        label: 'EDAD (años)',
-                        controller: _ageController,
-                        keyboardType: TextInputType.number,
-                        validator: (v) => v?.isEmpty ?? true ? 'Requerido' : null,
+                      child: _RadioOption(
+                        label: 'Perro',
+                        icon: Icons.pets,
+                        isSelected: _selectedSpecies == AppConstants.speciesDog,
+                        onTap: () =>
+                            setState(() => _selectedSpecies = AppConstants.speciesDog),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildDropdown(
-                        'GÉNERO',
-                        _selectedGender,
-                        ['Macho', 'Hembra'],
-                        (v) => setState(() => _selectedGender = v!),
-                        (s) => s,
+                      child: _RadioOption(
+                        label: 'Gato',
+                        icon: Icons.pest_control,
+                        isSelected: _selectedSpecies == AppConstants.speciesCat,
+                        onTap: () =>
+                            setState(() => _selectedSpecies = AppConstants.speciesCat),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
-                _buildDropdown(
-                  'TAMAÑO',
-                  _selectedSize,
-                  ['Pequeño', 'Mediano', 'Grande'],
-                  (v) => setState(() => _selectedSize = v!),
-                  (s) => s,
+                // Raza
+                CustomTextField(
+                  label: 'RAZA (Opcional)',
+                  hint: 'Ej: Labrador, Mestizo',
+                  controller: _breedController,
+                  prefixIcon: Icons.info_outline,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+
+                // Edad
+                CustomTextField(
+                  label: 'EDAD (años)',
+                  hint: '0 para cachorros',
+                  controller: _ageController,
+                  keyboardType: TextInputType.number,
+                  prefixIcon: Icons.cake,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'La edad es requerida';
+                    }
+                    if (int.tryParse(value) == null) {
+                      return 'Debe ser un número';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                // Género
+                const Text(
+                  'GÉNERO',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textGrey,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _RadioOption(
+                        label: 'Macho',
+                        icon: Icons.male,
+                        isSelected: _selectedGender == 'Macho',
+                        onTap: () => setState(() => _selectedGender = 'Macho'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _RadioOption(
+                        label: 'Hembra',
+                        icon: Icons.female,
+                        isSelected: _selectedGender == 'Hembra',
+                        onTap: () => setState(() => _selectedGender = 'Hembra'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Tamaño
+                const Text(
+                  'TAMAÑO',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textGrey,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _RadioOption(
+                        label: 'Pequeño',
+                        icon: Icons.circle,
+                        isSelected: _selectedSize == 'Pequeño',
+                        onTap: () => setState(() => _selectedSize = 'Pequeño'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _RadioOption(
+                        label: 'Mediano',
+                        icon: Icons.circle_outlined,
+                        isSelected: _selectedSize == 'Mediano',
+                        onTap: () => setState(() => _selectedSize = 'Mediano'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _RadioOption(
+                        label: 'Grande',
+                        icon: Icons.panorama_fish_eye,
+                        isSelected: _selectedSize == 'Grande',
+                        onTap: () => setState(() => _selectedSize = 'Grande'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
 
                 // Descripción
                 CustomTextField(
                   label: 'DESCRIPCIÓN',
-                  hint: 'Cuéntanos sobre esta mascota',
+                  hint: 'Describe la personalidad y características',
                   controller: _descriptionController,
-                  maxLines: 4,
-                  validator: (v) => v?.isEmpty ?? true ? 'Requerido' : null,
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'La descripción es requerida';
+                    }
+                    return null;
+                  },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
                 // Estado de salud
                 CustomTextField(
                   label: 'ESTADO DE SALUD',
-                  hint: 'Opcional',
-                  controller: _healthController,
+                  hint: 'Saludable, bajo tratamiento, etc.',
+                  controller: _healthStatusController,
                   maxLines: 2,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
-                // Checkboxes
-                Text('INFORMACIÓN MÉDICA', style: Theme.of(context).textTheme.bodyMedium),
+                // Checkboxes de salud
+                const Text(
+                  'CUIDADOS MÉDICOS',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textGrey,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                _buildCheckbox('Vacunado', _isVaccinated, (v) => setState(() => _isVaccinated = v!)),
-                _buildCheckbox('Desparasitado', _isDewormed, (v) => setState(() => _isDewormed = v!)),
-                _buildCheckbox('Esterilizado', _isSterilized, (v) => setState(() => _isSterilized = v!)),
-                _buildCheckbox('Microchip', _hasMicrochip, (v) => setState(() => _hasMicrochip = v!)),
-                
-                const SizedBox(height: 16),
+                _CheckboxOption(
+                  label: 'Vacunado',
+                  value: _isVaccinated,
+                  onChanged: (val) => setState(() => _isVaccinated = val),
+                ),
+                _CheckboxOption(
+                  label: 'Desparasitado',
+                  value: _isDewormed,
+                  onChanged: (val) => setState(() => _isDewormed = val),
+                ),
+                _CheckboxOption(
+                  label: 'Esterilizado',
+                  value: _isSterilized,
+                  onChanged: (val) => setState(() => _isSterilized = val),
+                ),
+                _CheckboxOption(
+                  label: 'Microchip',
+                  value: _hasMicrochip,
+                  onChanged: (val) => setState(() => _hasMicrochip = val),
+                ),
+                const SizedBox(height: 20),
 
                 // Necesidades especiales
                 CustomTextField(
-                  label: 'NECESIDADES ESPECIALES',
-                  hint: 'Opcional',
+                  label: 'NECESIDADES ESPECIALES (Opcional)',
+                  hint: 'Medicación, cuidados especiales, etc.',
                   controller: _specialNeedsController,
                   maxLines: 2,
                 ),
-
                 const SizedBox(height: 32),
 
                 // Botón guardar
                 CustomButton(
-                  text: widget.pet == null ? 'Registrar Mascota' : 'Actualizar',
+                  text: widget.pet == null ? 'Registrar Mascota' : 'Guardar Cambios',
                   onPressed: _savePet,
                   isLoading: _isLoading,
                 ),
@@ -341,137 +461,213 @@ class _CreatePetPageState extends State<CreatePetPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('FOTOS', style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 8),
-        
-        // Grid de imágenes
-        if (_existingImageUrls.isNotEmpty || _selectedImages.isNotEmpty)
-          SizedBox(
-            height: 100,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                // Imágenes existentes
-                ..._existingImageUrls.asMap().entries.map((e) => _buildImagePreview(
-                  isNetwork: true,
-                  imagePath: e.value,
-                  onRemove: () => _removeExistingImage(e.key),
-                )),
-                // Nuevas imágenes
-                ..._selectedImages.asMap().entries.map((e) => _buildImagePreview(
-                  isNetwork: false,
-                  imagePath: e.value.path,
-                  onRemove: () => _removeNewImage(e.key),
-                )),
-              ],
-            ),
+        const Text(
+          'IMÁGENES',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textGrey,
           ),
-        
-        const SizedBox(height: 12),
-        
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _pickImages,
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Galería'),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 120,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              // Botón agregar foto
+              _AddImageButton(
+                icon: Icons.add_photo_alternate,
+                label: 'Galería',
+                onTap: _pickImages,
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _takePicture,
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Cámara'),
+              const SizedBox(width: 12),
+              _AddImageButton(
+                icon: Icons.camera_alt,
+                label: 'Cámara',
+                onTap: _takePicture,
+              ),
+              const SizedBox(width: 12),
+              // Imágenes seleccionadas
+              ..._selectedImages.asMap().entries.map((entry) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: _ImagePreview(
+                    image: entry.value,
+                    onRemove: () => _removeImage(entry.key),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddImageButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _AddImageButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 100,
+        decoration: BoxDecoration(
+          color: AppTheme.background,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppTheme.primary.withValues(alpha: 0.3),
+            style: BorderStyle.solid,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 32, color: AppTheme.primary),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textGrey,
               ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
+}
 
-  Widget _buildImagePreview({
-    required bool isNetwork,
-    required String imagePath,
-    required VoidCallback onRemove,
-  }) {
-    return Container(
-      width: 100,
-      height: 100,
-      margin: const EdgeInsets.only(right: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        image: DecorationImage(
-          image: isNetwork 
-              ? NetworkImage(imagePath) as ImageProvider
-              : FileImage(File(imagePath)),
-          fit: BoxFit.cover,
+class _ImagePreview extends StatelessWidget {
+  final File image;
+  final VoidCallback onRemove;
+
+  const _ImagePreview({
+    required this.image,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(
+          width: 100,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            image: DecorationImage(
+              image: FileImage(image),
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 4,
-            right: 4,
-            child: GestureDetector(
-              onTap: onRemove,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.close, color: Colors.white, size: 16),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                size: 16,
+                color: Colors.white,
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDropdown<T>(
-    String label,
-    T value,
-    List<T> items,
-    void Function(T?) onChanged,
-    String Function(T) itemLabel,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textGrey)),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<T>(
-          value: value,
-          items: items.map((item) => DropdownMenuItem(
-            value: item,
-            child: Text(itemLabel(item)),
-          )).toList(),
-          onChanged: onChanged,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide.none,
-            ),
-          ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildCheckbox(String label, bool value, void Function(bool?) onChanged) {
+class _RadioOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _RadioOption({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primary.withValues(alpha: 0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppTheme.primary : AppTheme.textGrey.withValues(alpha: 0.3),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? AppTheme.primary : AppTheme.textGrey,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? AppTheme.primary : AppTheme.textDark,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckboxOption extends StatelessWidget {
+  final String label;
+  final bool value;
+  final Function(bool) onChanged;
+
+  const _CheckboxOption({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return CheckboxListTile(
       title: Text(label),
       value: value,
-      onChanged: onChanged,
+      onChanged: (val) => onChanged(val ?? false),
+      activeColor: AppTheme.primary,
       controlAffinity: ListTileControlAffinity.leading,
       contentPadding: EdgeInsets.zero,
-      activeColor: AppTheme.primary,
+      dense: true,
     );
   }
 }
