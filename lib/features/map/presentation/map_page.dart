@@ -16,7 +16,7 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   final _locationRepo = LocationRepository();
-  late MapController _mapController; // AHORA ES NULLABLE
+  final MapController _mapController = MapController(); // 🔥 INICIALIZAR AQUÍ
 
   UserLocation? _userLocation;
   List<ShelterMarker> _allShelters = [];
@@ -115,20 +115,18 @@ class _MapPageState extends State<MapPage> {
 
   // MÉTODO SEGURO PARA MOVER EL MAPA
   void _centerOnUser() {
-    if (_userLocation != null && _mapController != null) {
-      _mapController!.move(_userLocation!.toLatLng(), 15.0);
+    if (_userLocation != null) {
+      _mapController.move(_userLocation!.toLatLng(), 15.0);
       setState(() => _followUser = true);
     }
   }
 
   void _centerOnShelter(ShelterMarker shelter) {
-    if (_mapController != null) {
-      _mapController!.move(shelter.toLatLng(), 16.0);
-      setState(() {
-        _selectedShelter = shelter;
-        _followUser = false;
-      });
-    }
+    _mapController.move(shelter.toLatLng(), 16.0);
+    setState(() {
+      _selectedShelter = shelter;
+      _followUser = false;
+    });
   }
 
   @override
@@ -145,7 +143,8 @@ class _MapPageState extends State<MapPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.location_off, size: 80, color: AppTheme.textGrey),
+              const Icon(Icons.location_off,
+                  size: 80, color: AppTheme.textGrey),
               const SizedBox(height: 16),
               const Text('No se pudo obtener tu ubicación',
                   style: TextStyle(fontSize: 16, color: AppTheme.textGrey)),
@@ -170,7 +169,8 @@ class _MapPageState extends State<MapPage> {
             const Text('Refugios Cercanos'),
             Text(
               '${_nearbyShelters.length} en ${(_searchRadiusMeters / 1000).toStringAsFixed(0)} km',
-              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.9)),
+              style: TextStyle(
+                  fontSize: 12, color: Colors.white.withValues(alpha: 0.9)),
             ),
           ],
         ),
@@ -192,7 +192,7 @@ class _MapPageState extends State<MapPage> {
       ),
       body: Stack(
         children: [
-          // MAPA CON onMapReady CALLBACK
+          // 🔥 MAPA SIN onMapReady
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -201,17 +201,12 @@ class _MapPageState extends State<MapPage> {
               minZoom: 5.0,
               maxZoom: 18.0,
               onTap: (_, __) => setState(() => _selectedShelter = null),
-              // 🔥 NUEVO: Inicializar controller cuando el mapa esté listo
-              onMapReady: () {
-                debugPrint('MapController inicializado');
-              },
             ),
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.petadoptprueba2b',
               ),
-
               CircleLayer(
                 circles: [
                   CircleMarker(
@@ -224,7 +219,6 @@ class _MapPageState extends State<MapPage> {
                   ),
                 ],
               ),
-
               MarkerLayer(
                 markers: [
                   // Marcador del usuario
@@ -238,7 +232,8 @@ class _MapPageState extends State<MapPage> {
                         shape: BoxShape.circle,
                       ),
                       child: const Center(
-                        child: Icon(Icons.my_location, color: Colors.blue, size: 28),
+                        child: Icon(Icons.my_location,
+                            color: Colors.blue, size: 28),
                       ),
                     ),
                   ),
@@ -255,7 +250,8 @@ class _MapPageState extends State<MapPage> {
                           children: [
                             Container(
                               decoration: BoxDecoration(
-                                color: AppTheme.secondary.withValues(alpha: 0.2),
+                                color:
+                                    AppTheme.secondary.withValues(alpha: 0.2),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -366,7 +362,10 @@ class _MapPageState extends State<MapPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Radio de búsqueda',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textDark)),
             const SizedBox(height: 24),
             _RadiusOption(
               label: '1 km - Muy cerca',
@@ -445,7 +444,10 @@ class _MapPageState extends State<MapPage> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text('Refugios Cercanos',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textDark)),
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -471,22 +473,27 @@ class _MapPageState extends State<MapPage> {
                           color: AppTheme.secondary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.home, color: AppTheme.secondary),
+                        child:
+                            const Icon(Icons.home, color: AppTheme.secondary),
                       ),
-                      title: Text(shelter.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(shelter.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (shelter.address != null)
-                            Text(shelter.address!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Text(shelter.address!,
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.pets, size: 14, color: AppTheme.primary),
+                              Icon(Icons.pets,
+                                  size: 14, color: AppTheme.primary),
                               const SizedBox(width: 4),
                               Text('${shelter.petsCount} mascotas'),
                               const SizedBox(width: 12),
-                              Icon(Icons.location_on, size: 14, color: AppTheme.textGrey),
+                              Icon(Icons.location_on,
+                                  size: 14, color: AppTheme.textGrey),
                               const SizedBox(width: 4),
                               Text(_locationRepo.formatDistance(distance)),
                             ],
@@ -538,7 +545,10 @@ class _NoSheltersAlert extends StatelessWidget {
               const SizedBox(width: 12),
               const Expanded(
                 child: Text('No hay refugios cerca',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -587,7 +597,9 @@ class _RadiusOption extends StatelessWidget {
           color: isSelected ? AppTheme.primary : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? AppTheme.primary : AppTheme.textGrey.withValues(alpha: 0.3),
+            color: isSelected
+                ? AppTheme.primary
+                : AppTheme.textGrey.withValues(alpha: 0.3),
             width: 2,
           ),
         ),
@@ -600,7 +612,8 @@ class _RadiusOption extends StatelessWidget {
               child: Text(label,
                   style: TextStyle(
                     color: isSelected ? Colors.white : AppTheme.textDark,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                     fontSize: 16,
                   )),
             ),
@@ -646,7 +659,9 @@ class _ShelterInfoCard extends StatelessWidget {
                 Expanded(
                   child: Text(shelter.name,
                       style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textDark)),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -660,11 +675,13 @@ class _ShelterInfoCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.location_on, size: 16, color: AppTheme.textGrey),
+                  const Icon(Icons.location_on,
+                      size: 16, color: AppTheme.textGrey),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(shelter.address!,
-                        style: const TextStyle(fontSize: 14, color: AppTheme.textGrey)),
+                        style: const TextStyle(
+                            fontSize: 14, color: AppTheme.textGrey)),
                   ),
                 ],
               ),
@@ -717,7 +734,8 @@ class _InfoChip extends StatelessWidget {
           Icon(icon, size: 16, color: color),
           const SizedBox(width: 4),
           Text(label,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: color)),
         ],
       ),
     );

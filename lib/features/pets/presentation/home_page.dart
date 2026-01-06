@@ -256,12 +256,50 @@ class _HomePageState extends State<HomePage> {
           ? const LoadingWidget(message: 'Cargando mascotas...')
           : RefreshIndicator(
               onRefresh: _loadPets,
-              child: Column(
-                children: [
-                  _buildSearchBar(),
-                  _buildFilterChips(),
-                  Expanded(child: _buildPetGrid()),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 700) {
+                    // Wide layout: side panel for filters + main content
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 300,
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildFilterChips(),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Mascotas (${_filteredPets.length})',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _buildSearchBar(),
+                              Expanded(child: _buildPetGrid()),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  } else {
+                    // Narrow layout: stacked column
+                    return Column(
+                      children: [
+                        _buildSearchBar(),
+                        _buildFilterChips(),
+                        Expanded(child: _buildPetGrid()),
+                      ],
+                    );
+                  }
+                },
               ),
             ),
     );
@@ -381,25 +419,32 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: _filteredPets.length,
-      itemBuilder: (context, index) {
-        return PetCard(
-          pet: _filteredPets[index],
-          onTap: () async {
-            final result = await Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PetDetailPage(pet: _filteredPets[index]),
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final isWide = maxWidth > 800;
+        final childAspect = isWide ? 1.0 : 0.75;
+        return GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: isWide ? 350 : 300,
+            childAspectRatio: childAspect,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: _filteredPets.length,
+          itemBuilder: (context, index) {
+            return PetCard(
+              pet: _filteredPets[index],
+              onTap: () async {
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PetDetailPage(pet: _filteredPets[index]),
+                  ),
+                );
+                if (result == true) _loadPets();
+              },
             );
-            if (result == true) _loadPets();
           },
         );
       },

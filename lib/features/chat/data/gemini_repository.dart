@@ -9,18 +9,21 @@ class GeminiRepository {
   GeminiRepository() {
     // VALIDACION PARA CONFIRMA QUE LA API KEY NO ESTÉ VACÍA
     final apiKey = AppConstants.geminiApiKey;
-    
+
     if (apiKey.isEmpty) {
-      throw Exception(
-        'GEMINI_API_KEY no configurada. '
-        'Asegúrate de que el archivo .env tenga: GEMINI_API_KEY=tu-clave-real'
-      );
+      throw Exception('GEMINI_API_KEY no configurada. '
+          'Asegúrate de que el archivo .env tenga: GEMINI_API_KEY=tu-clave-real');
     }
 
-    print('Gemini API Key cargada: ${apiKey.substring(0, 10)}...');
+    final visibleKey =
+        apiKey.length > 10 ? '${apiKey.substring(0, 10)}...' : apiKey;
+    print('Gemini API Key cargada: $visibleKey');
+
+    final modelName = AppConstants.geminiModel;
+    print('Usando modelo Gemini: $modelName');
 
     _model = GenerativeModel(
-      model: 'gemini-pro',
+      model: modelName,
       apiKey: apiKey,
       systemInstruction: Content.system('''
 Eres un asistente virtual experto en cuidado y salud de mascotas (perros y gatos).
@@ -53,20 +56,26 @@ IMPORTANTE:
 
   Future<ChatMessage> sendMessage(String message) async {
     try {
-      // Enviar mensaje del usuario
-      final userMessage = ChatMessage(
-        text: message,
-        isUser: true,
-        timestamp: DateTime.now(),
-      );
+      // Enviar mensaje del usuario (registro)
+      print('Enviando mensaje a Gemini: ${message.length} chars');
 
-      // Obtener respuesta de Gemini
+      // Obtener respuesta de Gemini con timeout
       final content = Content.text(message);
-      final response = await _chat.sendMessage(content);
+      final response = await _chat.sendMessage(content).timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw Exception(
+                'Tiempo de espera agotado al comunicarse con Gemini'),
+          );
+
+      // Verificar respuesta
+      final responseText = response.text?.trim();
+      if (responseText == null || responseText.isEmpty) {
+        throw Exception('Respuesta vacía desde Gemini');
+      }
 
       // Crear mensaje de respuesta
       final aiMessage = ChatMessage(
-        text: response.text ?? 'Lo siento, no pude generar una respuesta.',
+        text: responseText,
         isUser: false,
         timestamp: DateTime.now(),
       );
