@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'package:uni_links/uni_links.dart';
+import 'package:app_links/app_links.dart';
 
 class DeepLinkHandler {
   static final DeepLinkHandler _instance = DeepLinkHandler._internal();
   factory DeepLinkHandler() => _instance;
   DeepLinkHandler._internal();
 
+  final _appLinks = AppLinks();
   StreamSubscription? _sub;
   
   // Callback cuando se recibe un deep link
@@ -19,12 +20,10 @@ class DeepLinkHandler {
     _handleInitialUri();
     
     // Escuchar links mientras la app está abierta
-    _sub = uriLinkStream.listen(
-      (Uri? uri) {
-        if (uri != null) {
-          print('✅ Deep link recibido: $uri');
-          onDeepLink?.call(uri);
-        }
+    _sub = _appLinks.uriLinkStream.listen(
+      (Uri uri) {
+        print('✅ Deep link recibido: $uri');
+        onDeepLink?.call(uri);
       },
       onError: (err) {
         print('❌ Error en deep link: $err');
@@ -35,7 +34,7 @@ class DeepLinkHandler {
   /// Manejar link inicial
   Future<void> _handleInitialUri() async {
     try {
-      final uri = await getInitialUri();
+      final uri = await _appLinks.getInitialLink();
       if (uri != null) {
         print('✅ Link inicial detectado: $uri');
         onDeepLink?.call(uri);
