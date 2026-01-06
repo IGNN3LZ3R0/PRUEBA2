@@ -15,6 +15,7 @@ import '../../chat/presentation/chat_page.dart';
 import '../../map/presentation/map_page.dart';
 import '../../adoptions/presentation/my_requests_page.dart';
 import '../../adoptions/presentation/shelter_dashboard_page.dart';
+import '../../../services/notification_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -40,10 +41,12 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadUserAndPets();
+    _startNotifications(); // 🆕 AGREGA ESTO
   }
 
   @override
   void dispose() {
+    NotificationService().stop(); // 🆕 LIMPIAR
     _searchController.dispose();
     super.dispose();
   }
@@ -67,6 +70,68 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  // 🆕 NUEVO MÉTODO
+  void _startNotifications() async {
+    // Esperar a que cargue el usuario
+    await Future.delayed(const Duration(seconds: 1));
+
+    if (_currentUser != null) {
+      NotificationService().start(
+        _currentUser!.id,
+        _currentUser!.isRefugio,
+      );
+
+      // Configurar callbacks para mostrar alertas
+      NotificationService().onNewRequest = (request) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.pets, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '🐾 Nueva solicitud',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text('${request['adoptante_name']} quiere adoptar'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      };
+
+      NotificationService().onRequestStatusChanged = (request) {
+        if (mounted) {
+          final status = request['status'];
+          final isApproved = status == AppConstants.statusApproved;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isApproved ? '✅ ¡Solicitud aprobada!' : '❌ Solicitud rechazada',
+              ),
+              backgroundColor: isApproved ? Colors.green : Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      };
     }
   }
 
@@ -191,7 +256,16 @@ class _HomePageState extends State<HomePage> {
             ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: (index) {
+          setState(() => _selectedIndex = index);
+          // Actualizar notificaciones al cambiar de pestaña
+          if (_currentUser != null) {
+            NotificationService().checkNow(
+              _currentUser!.id,
+              _currentUser!.isRefugio,
+            );
+          }
+        },
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppTheme.primary,
         unselectedItemColor: AppTheme.textGrey,
@@ -209,7 +283,14 @@ class _HomePageState extends State<HomePage> {
             label: 'Mapa',
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.favorite),
+            // 🆕 CON BADGE
+            icon: _currentUser != null
+                ? NotificationBadge(
+                    userId: _currentUser!.id,
+                    isRefugio: _currentUser!.isRefugio,
+                    child: const Icon(Icons.favorite),
+                  )
+                : const Icon(Icons.favorite),
             label: _currentUser?.isRefugio == true
                 ? 'Solicitudes'
                 : 'Mis Solicitudes',
