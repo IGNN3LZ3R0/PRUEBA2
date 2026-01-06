@@ -193,14 +193,24 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_selectedIndex == 1) return const ChatPage();
-    if (_selectedIndex == 2) return const MapPage();
-    if (_selectedIndex == 3) {
-      return _currentUser?.isAdoptante == true
+    // Lista de páginas
+    final List<Widget> _pages = [
+      _buildHomePage(), // La página de mascotas
+      const ChatPage(),
+      const MapPage(),
+      _currentUser?.isAdoptante == true
           ? const MyRequestsPage()
-          : const ShelterDashboardPage();
-    }
+          : const ShelterDashboardPage(),
+    ];
 
+    return Scaffold(
+      body: _pages[_selectedIndex], // 🔥 Cambia solo el body
+      bottomNavigationBar: _buildBottomNavigationBar(), // 🔥 Siempre visible
+    );
+  }
+
+  // Extraer la página de mascotas a un método
+  Widget _buildHomePage() {
     return Scaffold(
       appBar: AppBar(
         title: const Text('PetAdopt'),
@@ -254,49 +264,51 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() => _selectedIndex = index);
-          // Actualizar notificaciones al cambiar de pestaña
-          if (_currentUser != null) {
-            NotificationService().checkNow(
-              _currentUser!.id,
-              _currentUser!.isRefugio,
-            );
-          }
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppTheme.primary,
-        unselectedItemColor: AppTheme.textGrey,
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
-            label: 'Chat IA',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Mapa',
-          ),
-          BottomNavigationBarItem(
-            // 🆕 CON BADGE
-            icon: _currentUser != null
-                ? NotificationBadge(
-                    userId: _currentUser!.id,
-                    isRefugio: _currentUser!.isRefugio,
-                    child: const Icon(Icons.favorite),
-                  )
-                : const Icon(Icons.favorite),
-            label: _currentUser?.isRefugio == true
-                ? 'Solicitudes'
-                : 'Mis Solicitudes',
-          ),
-        ],
-      ),
+    );
+  }
+
+  // Extraer el BottomNavigationBar
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      currentIndex: _selectedIndex,
+      onTap: (index) {
+        setState(() => _selectedIndex = index);
+        if (_currentUser != null) {
+          NotificationService().checkNow(
+            _currentUser!.id,
+            _currentUser!.isRefugio,
+          );
+        }
+      },
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: AppTheme.primary,
+      unselectedItemColor: AppTheme.textGrey,
+      items: [
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.home),
+          label: 'Inicio',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.chat),
+          label: 'Chat IA',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.map),
+          label: 'Mapa',
+        ),
+        BottomNavigationBarItem(
+          icon: _currentUser != null
+              ? NotificationBadge(
+                  userId: _currentUser!.id,
+                  isRefugio: _currentUser!.isRefugio,
+                  child: const Icon(Icons.favorite),
+                )
+              : const Icon(Icons.favorite),
+          label: _currentUser?.isRefugio == true
+              ? 'Solicitudes'
+              : 'Mis Solicitudes',
+        ),
+      ],
     );
   }
 

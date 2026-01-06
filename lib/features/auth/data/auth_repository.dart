@@ -31,24 +31,26 @@ class AuthRepository {
     required String userType,
   }) async {
     try {
-      // 1. Crear usuario en Auth
+      // 1. Crear usuario en Auth (el trigger creará el perfil automáticamente)
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
+        data: {
+          'full_name': fullName,
+          'user_type': userType,
+        },
       );
 
       if (response.user != null) {
-        // 2. Crear perfil en la tabla profiles
-        final profile = {
-          'id': response.user!.id,
-          'email': email,
-          'full_name': fullName,
-          'user_type': userType,
-        };
+        // 2. Esperar a que el trigger se ejecute
+        await Future.delayed(const Duration(milliseconds: 800));
 
-        await _supabase
+        // 3. Obtener el perfil creado por el trigger
+        final profile = await _supabase
             .from(AppConstants.profilesTable)
-            .insert(profile);
+            .select()
+            .eq('id', response.user!.id)
+            .single();
 
         return UserModel.fromJson(profile);
       }
@@ -69,7 +71,7 @@ class AuthRepository {
       if (response) {
         // Esperar a que se complete la autenticación
         await Future.delayed(const Duration(seconds: 2));
-        
+
         final user = _supabase.auth.currentUser;
         if (user != null) {
           // Verificar si el perfil existe
@@ -84,14 +86,14 @@ class AuthRepository {
             final profile = {
               'id': user.id,
               'email': user.email,
-              'full_name': user.userMetadata?['full_name'] ?? user.email?.split('@')[0] ?? '',
+              'full_name': user.userMetadata?['full_name'] ??
+                  user.email?.split('@')[0] ??
+                  '',
               'user_type': AppConstants.userTypeAdoptante,
               'avatar_url': user.userMetadata?['avatar_url'],
             };
 
-            await _supabase
-                .from(AppConstants.profilesTable)
-                .insert(profile);
+            await _supabase.from(AppConstants.profilesTable).insert(profile);
 
             return UserModel.fromJson(profile);
           }
@@ -157,7 +159,7 @@ class AuthRepository {
   UserModel? getCurrentUser() {
     final user = _supabase.auth.currentUser;
     if (user == null) return null;
-    
+
     // Retornar un modelo básico, luego cargar el perfil completo
     return UserModel(
       id: user.id,
