@@ -1,7 +1,7 @@
+import 'dart:math'; // AÑADE ESTA IMPORTACIÓN
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'dart:math'; 
 import '../../../core/theme.dart';
 import '../../../core/supabase_client.dart';
 import '../../../core/constants.dart';
@@ -28,14 +28,14 @@ class _MapPageState extends State<MapPage> {
   ShelterMarker? _selectedShelter;
 
   double _searchRadiusMeters = LocationRepository.DEFAULT_SEARCH_RADIUS_METERS;
-  double _currentZoom = 13.0; // 🔥 NUEVA VARIABLE PARA SEGUIR EL ZOOM
+  double _currentZoom = 13.0;
 
   @override
   void initState() {
     super.initState();
     _initializeMap();
     
-    // 🔥 ESCUCHAR CAMBIOS DE ZOOM
+    // Escuchar cambios de zoom
     _mapController.mapEventStream.listen((event) {
       if (event is MapEventMove && event.camera.zoom != _currentZoom) {
         setState(() {
@@ -130,7 +130,7 @@ class _MapPageState extends State<MapPage> {
       _mapController.move(_userLocation!.toLatLng(), 15.0);
       setState(() {
         _followUser = true;
-        _currentZoom = 15.0; // 🔥 ACTUALIZAR ZOOM
+        _currentZoom = 15.0;
       });
     }
   }
@@ -140,20 +140,31 @@ class _MapPageState extends State<MapPage> {
     setState(() {
       _selectedShelter = shelter;
       _followUser = false;
-      _currentZoom = 16.0; // 🔥 ACTUALIZAR ZOOM
+      _currentZoom = 16.0;
     });
   }
 
-  // 🔥 CALCULAR RADIO VISUAL CORREGIDO
-  double _getVisualRadius() {
-    // Convertir metros a grados aproximados (1 grado ≈ 111 km)
-    const metersPerDegree = 111000.0;
-    final radiusInDegrees = _searchRadiusMeters / metersPerDegree;
+  // 🔥 FUNCIÓN CORREGIDA CON IMPORTACIÓN DE dart:math
+  List<LatLng> _generateCirclePoints(LatLng center, double radiusMeters, {int points = 60}) {
+    const earthRadius = 6371000.0; // Radio de la Tierra en metros
+    const degreesPerRadian = 180.0 / pi;
     
-    // Ajustar según el zoom (más zoom = círculo más grande visualmente)
-    final zoomFactor = 1.0 / (_currentZoom / 13.0); // Base en zoom 13
+    final List<LatLng> circlePoints = [];
     
-    return radiusInDegrees * zoomFactor;
+    for (int i = 0; i <= points; i++) {
+      final angle = 2 * pi * i / points;
+      
+      // Convertir radio a grados
+      final dx = (radiusMeters * cos(angle)) / earthRadius * degreesPerRadian;
+      final dy = (radiusMeters * sin(angle)) / earthRadius * degreesPerRadian;
+      
+      final lat = center.latitude + dy;
+      final lon = center.longitude + dx / cos(center.latitude * pi / 180.0);
+      
+      circlePoints.add(LatLng(lat, lon));
+    }
+    
+    return circlePoints;
   }
 
   @override
@@ -268,7 +279,7 @@ class _MapPageState extends State<MapPage> {
                       userAgentPackageName: 'com.example.petadoptprueba2b',
                     ),
                     
-                    // 🔥 CÍRCULO CORREGIDO - Usar CircleMarkerLayer en lugar de CircleLayer
+                    // Círculo principal
                     CircleLayer(
                       circles: [
                         CircleMarker(
@@ -282,6 +293,19 @@ class _MapPageState extends State<MapPage> {
                       ],
                     ),
                     
+                    // 🔥 POLÍGONO PARA MEJOR VISIBILIDAD (OPCIONAL)
+                    PolygonLayer(
+                      polygons: [
+                        Polygon(
+                          points: _generateCirclePoints(_userLocation!.toLatLng(), _searchRadiusMeters),
+                          color: AppTheme.primary.withOpacity(0.05),
+                          borderColor: AppTheme.primary.withOpacity(0.3),
+                          borderStrokeWidth: 1.5,
+                          isFilled: true,
+                        ),
+                      ],
+                    ),
+
                     MarkerLayer(
                       markers: [
                         Marker(
@@ -353,22 +377,9 @@ class _MapPageState extends State<MapPage> {
                           );
                         }),
                       ],
-                ),
-
-                // 🔥 ANILLO EXTERIOR PARA MEJOR VISIBILIDAD
-                PolygonLayer(
-                  polygons: [
-                    Polygon(
-                      points: _generateCirclePoints(_userLocation!.toLatLng(), _searchRadiusMeters),
-                      color: AppTheme.primary.withOpacity(0.05),
-                      borderColor: AppTheme.primary.withOpacity(0.3),
-                      borderStrokeWidth: 1.5,
-                      isFilled: true,
                     ),
                   ],
                 ),
-              ],
-            ),
 
                 // AppBar flotante para landscape
                 if (isLandscape)
@@ -441,7 +452,7 @@ class _MapPageState extends State<MapPage> {
                     ),
                   ),
 
-                // Botón centrar en usuario - posición ajustada para landscape
+                // Botón centrar en usuario
                 Positioned(
                   bottom: isLandscape ? 16 : 100,
                   right: isLandscape ? 16 : 16,
@@ -457,7 +468,7 @@ class _MapPageState extends State<MapPage> {
                   ),
                 ),
 
-                // Tarjeta de información del refugio - adaptada a landscape
+                // Tarjeta de información del refugio
                 if (_selectedShelter != null)
                   Positioned(
                     bottom: 16,
@@ -477,7 +488,7 @@ class _MapPageState extends State<MapPage> {
                     ),
                   ),
 
-                // Botón para mostrar lista - solo en vertical o sin panel lateral
+                // Botón para mostrar lista
                 if (!isLandscape && _nearbyShelters.isNotEmpty && _selectedShelter == null)
                   Positioned(
                     bottom: 16,
@@ -499,29 +510,6 @@ class _MapPageState extends State<MapPage> {
         ],
       ),
     );
-  }
-
-  // 🔥 FUNCIÓN PARA GENERAR PUNTOS DEL CÍRCULO
-  List<LatLng> _generateCirclePoints(LatLng center, double radiusMeters, {int points = 60}) {
-    const earthRadius = 6371000.0; // Radio de la Tierra en metros
-    const degreesPerRadian = 180.0 / 3.141592653589793;
-    
-    final List<LatLng> circlePoints = [];
-    
-    for (int i = 0; i <= points; i++) {
-      final angle = 2 * 3.141592653589793 * i / points;
-      
-      // Convertir radio a grados
-      final dx = (radiusMeters * cos(angle)) / earthRadius * degreesPerRadian;
-      final dy = (radiusMeters * sin(angle)) / earthRadius * degreesPerRadian;
-      
-      final lat = center.latitude + dy;
-      final lon = center.longitude + dx / cos(center.latitude * 3.141592653589793 / 180.0);
-      
-      circlePoints.add(LatLng(lat, lon));
-    }
-    
-    return circlePoints;
   }
 
   Widget _buildSheltersListPanel() {
@@ -686,41 +674,6 @@ class _MapPageState extends State<MapPage> {
                 Navigator.pop(context);
               },
             ),
-            
-            // 🔥 SLIDER PARA CONTROL PRECISO
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Radio personalizado: ${(_searchRadiusMeters / 1000).toStringAsFixed(1)} km',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Slider(
-                    value: _searchRadiusMeters,
-                    min: 1000,
-                    max: 20000,
-                    divisions: 19,
-                    label: '${(_searchRadiusMeters / 1000).toStringAsFixed(1)} km',
-                    onChanged: (value) {
-                      setState(() {
-                        _searchRadiusMeters = value;
-                        _filterSheltersByRadius();
-                      });
-                    },
-                    activeColor: AppTheme.primary,
-                    inactiveColor: AppTheme.primary.withOpacity(0.3),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -831,7 +784,7 @@ class _MapPageState extends State<MapPage> {
   }
 }
 
-// Widgets auxiliares
+// Widgets auxiliares (sin cambios)
 class _NoSheltersAlert extends StatelessWidget {
   final VoidCallback onExpandRadius;
   const _NoSheltersAlert({required this.onExpandRadius});
