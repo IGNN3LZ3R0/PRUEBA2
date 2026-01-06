@@ -7,9 +7,21 @@ class GeminiRepository {
   late final ChatSession _chat;
 
   GeminiRepository() {
+    // VALIDACION PARA CONFIRMA QUE LA API KEY NO ESTÉ VACÍA
+    final apiKey = AppConstants.geminiApiKey;
+    
+    if (apiKey.isEmpty) {
+      throw Exception(
+        'GEMINI_API_KEY no configurada. '
+        'Asegúrate de que el archivo .env tenga: GEMINI_API_KEY=tu-clave-real'
+      );
+    }
+
+    print('Gemini API Key cargada: ${apiKey.substring(0, 10)}...');
+
     _model = GenerativeModel(
       model: 'gemini-pro',
-      apiKey: AppConstants.geminiApiKey,
+      apiKey: apiKey,
       systemInstruction: Content.system('''
 Eres un asistente virtual experto en cuidado y salud de mascotas (perros y gatos).
 
@@ -61,6 +73,7 @@ IMPORTANTE:
 
       return aiMessage;
     } catch (e) {
+      print('❌ Error en sendMessage: $e');
       throw Exception('Error al comunicarse con Gemini: $e');
     }
   }

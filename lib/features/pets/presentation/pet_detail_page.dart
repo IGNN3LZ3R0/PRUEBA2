@@ -28,7 +28,7 @@ class _PetDetailPageState extends State<PetDetailPage> {
 
   UserModel? _currentUser;
   int _currentImageIndex = 0;
-  bool _isLoading = false;
+  bool _isLoading = true; // 🔥 NUEVO: Estado de carga inicial
 
   @override
   void initState() {
@@ -43,49 +43,158 @@ class _PetDetailPageState extends State<PetDetailPage> {
   }
 
   Future<void> _loadCurrentUser() async {
-    final userId = SupabaseClientManager.instance.userId;
-    if (userId != null) {
-      _currentUser = await _authRepo.getUserProfile(userId);
-      setState(() {});
+    setState(() => _isLoading = true);
+    
+    try {
+      final userId = SupabaseClientManager.instance.userId;
+      if (userId != null) {
+        _currentUser = await _authRepo.getUserProfile(userId);
+        print('✅ Usuario cargado: ${_currentUser?.fullName} (${_currentUser?.userType})');
+      } else {
+        print('❌ No hay usuario autenticado');
+      }
+    } catch (e) {
+      print('❌ Error cargando usuario: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
+  // 🔥 NUEVO: Diálogo mejorado con mejor diseño
   Future<void> _requestAdoption() async {
-    if (_currentUser == null) return;
+    if (_currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Debes iniciar sesión para solicitar adopción'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-    // Mostrar diálogo con mensaje opcional
     final messageController = TextEditingController();
+    
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Solicitar Adopción'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('¿Deseas adoptar a ${widget.pet.name}?'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: messageController,
-              decoration: const InputDecoration(
-                labelText: 'Mensaje para el refugio (opcional)',
-                hintText: 'Cuéntanos por qué quieres adoptar...',
-                border: OutlineInputBorder(),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 🐾 Icono
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.favorite,
+                  color: AppTheme.primary,
+                  size: 48,
+                ),
               ),
-              maxLines: 3,
-            ),
-          ],
+              
+              const SizedBox(height: 20),
+              
+              // Título
+              const Text(
+                '¿Quieres adoptar?',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
+                ),
+              ),
+              
+              const SizedBox(height: 8),
+              
+              // Mascota
+              Text(
+                'Estás a punto de solicitar la adopción de ${widget.pet.name}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textGrey,
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Campo de mensaje
+              TextField(
+                controller: messageController,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  labelText: 'Mensaje para el refugio (opcional)',
+                  hintText: 'Cuéntanos por qué quieres adoptar a ${widget.pet.name}...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppTheme.primary, width: 2),
+                  ),
+                  alignLabelWithHint: true,
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Botones
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Enviar',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Enviar Solicitud'),
-          ),
-        ],
       ),
     );
 
@@ -106,18 +215,89 @@ class _PetDetailPageState extends State<PetDetailPage> {
         );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('¡Solicitud enviada! El refugio la revisará pronto.'),
-              backgroundColor: AppTheme.approved,
+          // 🔥 ANIMACIÓN DE ÉXITO
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: AppTheme.approved.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_circle,
+                        color: AppTheme.approved,
+                        size: 64,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      '¡Solicitud Enviada!',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Tu solicitud para adoptar a ${widget.pet.name} ha sido enviada al refugio. Te notificaremos cuando sea revisada.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textGrey,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context); // Cerrar diálogo
+                          Navigator.pop(context); // Volver a home
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.approved,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Entendido',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
-          Navigator.pop(context);
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e')),
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppTheme.rejected,
+            ),
           );
         }
       } finally {
@@ -192,12 +372,23 @@ class _PetDetailPageState extends State<PetDetailPage> {
   }
 
   bool get _isOwner => _currentUser?.id == widget.pet.refugioId;
+  bool get _canAdopt => _currentUser != null && 
+                        _currentUser!.isAdoptante && 
+                        !_isOwner && 
+                        widget.pet.isAvailable;
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 MOSTRAR LOADING MIENTRAS CARGA EL USUARIO
+    if (_isLoading && _currentUser == null) {
+      return const Scaffold(
+        body: LoadingWidget(message: 'Cargando...'),
+      );
+    }
+
     return Scaffold(
       body: LoadingOverlay(
-        isLoading: _isLoading,
+        isLoading: _isLoading && _currentUser != null,
         child: CustomScrollView(
           slivers: [
             _buildAppBar(),
@@ -220,7 +411,7 @@ class _PetDetailPageState extends State<PetDetailPage> {
                     ],
                     const SizedBox(height: 24),
                     _buildRefugioInfo(),
-                    const SizedBox(height: 100),
+                    const SizedBox(height: 120), // 🔥 MÁS ESPACIO PARA EL BOTÓN
                   ],
                 ),
               ),
@@ -269,7 +460,6 @@ class _PetDetailPageState extends State<PetDetailPage> {
                   child: Icon(Icons.pets, size: 80, color: AppTheme.textGrey),
                 ),
               ),
-            // Gradiente inferior
             Positioned(
               bottom: 0,
               left: 0,
@@ -288,7 +478,6 @@ class _PetDetailPageState extends State<PetDetailPage> {
                 ),
               ),
             ),
-            // Indicador de imágenes
             if (widget.pet.imageUrls.length > 1)
               Positioned(
                 bottom: 16,
@@ -548,21 +737,25 @@ class _PetDetailPageState extends State<PetDetailPage> {
 
   Widget _buildRefugioInfo() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.background,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.textGrey.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: AppTheme.secondary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.home, color: AppTheme.secondary),
+            child: const Icon(Icons.home, color: AppTheme.secondary, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -572,31 +765,45 @@ class _PetDetailPageState extends State<PetDetailPage> {
                 const Text(
                   'Refugio',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: AppTheme.textGrey,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   widget.pet.refugioName ?? 'Sin información',
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textDark,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
           if (widget.pet.refugioPhone != null)
-            IconButton(
-              icon: const Icon(Icons.phone, color: AppTheme.primary),
-              onPressed: () {
-                // TODO: Implementar llamada
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text('Tel: ${widget.pet.refugioPhone}')),
-                );
-              },
+            Container(
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.phone, color: AppTheme.primary, size: 20),
+                iconSize: 20,
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Tel: ${widget.pet.refugioPhone}'),
+                      backgroundColor: AppTheme.primary,
+                    ),
+                  );
+                },
+              ),
             ),
         ],
       ),
@@ -604,50 +811,144 @@ class _PetDetailPageState extends State<PetDetailPage> {
   }
 
   Widget _buildBottomSheet() {
-    if (_currentUser == null) return const SizedBox.shrink();
+    // 🔥 SI NO HAY USUARIO, NO MOSTRAR NADA
+    if (_currentUser == null) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
-        child: _currentUser!.isAdoptante && !_isOwner && widget.pet.isAvailable
-            ? CustomButton(
-                text: 'Solicitar Adopción',
+        top: false,
+        child: _canAdopt
+            ? ElevatedButton(
                 onPressed: _requestAdoption,
-                icon: Icons.favorite,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.favorite, size: 22),
+                    SizedBox(width: 8),
+                    Text(
+                      'Solicitar Adopción',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               )
             : _isOwner
                 ? Row(
                     children: [
                       Expanded(
-                        child: CustomButton(
-                          text: 'Editar',
+                        child: OutlinedButton.icon(
                           onPressed: _editPet,
-                          backgroundColor: AppTheme.secondary,
-                          icon: Icons.edit,
+                          icon: const Icon(Icons.edit, size: 20),
+                          label: const Text('Editar'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: const BorderSide(color: AppTheme.secondary, width: 2),
+                            foregroundColor: AppTheme.secondary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: CustomButton(
-                          text: 'Eliminar',
+                        child: OutlinedButton.icon(
                           onPressed: _deletePet,
-                          backgroundColor: AppTheme.rejected,
-                          icon: Icons.delete,
+                          icon: const Icon(Icons.delete, size: 20),
+                          label: const Text('Eliminar'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: const BorderSide(color: AppTheme.rejected, width: 2),
+                            foregroundColor: AppTheme.rejected,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   )
-                : const SizedBox.shrink(),
+                : widget.pet.isAvailable
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.pending.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.pending.withValues(alpha: 0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: AppTheme.pending, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Debes ser adoptante para solicitar adopción',
+                                style: TextStyle(
+                                  color: AppTheme.pending,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.textGrey.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.textGrey.withValues(alpha: 0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle, color: AppTheme.textGrey, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Esta mascota ya fue adoptada',
+                                style: TextStyle(
+                                  color: AppTheme.textGrey,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
       ),
     );
   }
