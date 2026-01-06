@@ -22,6 +22,7 @@ class GeminiRepository {
     final modelName = AppConstants.geminiModel;
     print('Usando modelo Gemini: $modelName');
 
+    // 🔥 CONFIGURACIÓN CORRECTA DEL MODELO
     _model = GenerativeModel(
       model: modelName,
       apiKey: apiKey,
@@ -42,27 +43,34 @@ Responde de manera:
 - Empática y amigable
 - Basada en información veterinaria confiable
 - En español
-- Sin usar formato markdown
+- Sin usar formato markdown excesivo (solo negritas y listas cuando sea necesario)
 
 IMPORTANTE: 
 - Si te preguntan sobre diagnósticos médicos serios, recomienda consultar a un veterinario.
 - No des consejos que puedan poner en riesgo la salud del animal.
 - Si la pregunta no está relacionada con mascotas, responde amablemente que solo puedes ayudar con temas de cuidado de perros y gatos.
       '''),
+      generationConfig: GenerationConfig(
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+        topP: 0.8,
+        topK: 40,
+      ),
     );
 
+    // Iniciar la sesión de chat
     _chat = _model.startChat();
   }
 
   Future<ChatMessage> sendMessage(String message) async {
     try {
       // Enviar mensaje del usuario (registro)
-      print('Enviando mensaje a Gemini: ${message.length} chars');
+      print('📤 Enviando mensaje a Gemini: ${message.length} chars');
 
       // Obtener respuesta de Gemini con timeout
       final content = Content.text(message);
       final response = await _chat.sendMessage(content).timeout(
-            const Duration(seconds: 20),
+            const Duration(seconds: 30),
             onTimeout: () => throw Exception(
                 'Tiempo de espera agotado al comunicarse con Gemini'),
           );
@@ -72,6 +80,8 @@ IMPORTANTE:
       if (responseText == null || responseText.isEmpty) {
         throw Exception('Respuesta vacía desde Gemini');
       }
+
+      print('📥 Respuesta recibida: ${responseText.length} chars');
 
       // Crear mensaje de respuesta
       final aiMessage = ChatMessage(
@@ -83,13 +93,24 @@ IMPORTANTE:
       return aiMessage;
     } catch (e) {
       print('❌ Error en sendMessage: $e');
-      throw Exception('Error al comunicarse con Gemini: $e');
+      
+      // Manejo de errores específicos
+      if (e.toString().contains('API key')) {
+        throw Exception('Error de API Key. Verifica que tu clave de Gemini sea válida.');
+      } else if (e.toString().contains('quota')) {
+        throw Exception('Límite de cuota alcanzado. Intenta más tarde.');
+      } else if (e.toString().contains('timeout')) {
+        throw Exception('La respuesta tardó demasiado. Intenta de nuevo.');
+      } else {
+        throw Exception('Error al comunicarse con Gemini: $e');
+      }
     }
   }
 
   // Reiniciar conversación
   void resetChat() {
     _chat = _model.startChat();
+    print('🔄 Chat reiniciado');
   }
 
   // Preguntas sugeridas

@@ -16,6 +16,7 @@ class _ChatPageState extends State<ChatPage> {
   final _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -33,7 +34,7 @@ class _ChatPageState extends State<ChatPage> {
   void _addWelcomeMessage() {
     _messages.add(ChatMessage(
       text:
-          '¡Hola! Soy tu asistente virtual de PetAdopt. Puedo ayudarte con preguntas sobre salud, cuidados, alimentación y comportamiento de perros y gatos. ¿En qué puedo ayudarte hoy?',
+          '¡Hola! 🐾 Soy tu asistente virtual de PetAdopt. Puedo ayudarte con preguntas sobre salud, cuidados, alimentación y comportamiento de perros y gatos. ¿En qué puedo ayudarte hoy?',
       isUser: false,
       timestamp: DateTime.now(),
     ));
@@ -51,28 +52,47 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _messages.add(userMessage);
       _isLoading = true;
+      _errorMessage = null; // Limpiar errores previos
     });
 
     _messageController.clear();
     _scrollToBottom();
 
     try {
+      print('🚀 Enviando mensaje...');
       final aiMessage = await _geminiRepo.sendMessage(text);
-      setState(() {
-        _messages.add(aiMessage);
-        _isLoading = false;
-      });
-      _scrollToBottom();
+      
+      if (mounted) {
+        setState(() {
+          _messages.add(aiMessage);
+          _isLoading = false;
+        });
+        _scrollToBottom();
+        print('✅ Mensaje recibido y mostrado');
+      }
     } catch (e) {
-      setState(() {
-        _messages.add(ChatMessage(
-          text: 'Lo siento, ocurrió un error: ${e.toString()}',
-          isUser: false,
-          timestamp: DateTime.now(),
-        ));
-        _isLoading = false;
-      });
-      _scrollToBottom();
+      print('❌ Error capturado: $e');
+      
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+        
+        // Mostrar error en un SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_errorMessage ?? 'Error desconocido'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Reintentar',
+              textColor: Colors.white,
+              onPressed: () => _sendMessage(text),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -112,6 +132,7 @@ class _ChatPageState extends State<ChatPage> {
             onPressed: () {
               setState(() {
                 _messages.clear();
+                _errorMessage = null;
                 _geminiRepo.resetChat();
                 _addWelcomeMessage();
               });
@@ -122,6 +143,40 @@ class _ChatPageState extends State<ChatPage> {
       ),
       body: Column(
         children: [
+          // 🔥 Mostrar error si existe
+          if (_errorMessage != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade700),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => setState(() => _errorMessage = null),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+
           if (_messages.isEmpty) _buildEmptyState(),
           if (_messages.isNotEmpty)
             Expanded(
@@ -314,17 +369,31 @@ class _ChatPageState extends State<ChatPage> {
               maxLines: null,
               textInputAction: TextInputAction.send,
               onSubmitted: _sendMessage,
+              enabled: !_isLoading, // 🔥 Deshabilitar mientras carga
             ),
           ),
           const SizedBox(width: 12),
           Container(
-            decoration: const BoxDecoration(
-              color: AppTheme.primary,
+            decoration: BoxDecoration(
+              color: _isLoading 
+                  ? AppTheme.textGrey.withValues(alpha: 0.3)
+                  : AppTheme.primary,
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white),
-              onPressed: () => _sendMessage(_messageController.text),
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send, color: Colors.white),
+              onPressed: _isLoading 
+                  ? null 
+                  : () => _sendMessage(_messageController.text),
             ),
           ),
         ],

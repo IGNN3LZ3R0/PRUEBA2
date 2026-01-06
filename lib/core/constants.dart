@@ -4,9 +4,9 @@ class AppConstants {
   // API Keys (cargadas desde .env)
   static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
 
-  // Gemini model (configurable via .env), default to gemini-3-flash which is recommended
+  // 🔥 MODELO CORRECTO: gemini-1.5-flash (sin -latest)
   static String get geminiModel =>
-      dotenv.env['GEMINI_MODEL'] ?? 'gemini-1.5-flash-latest';
+      dotenv.env['GEMINI_MODEL'] ?? 'gemini-1.5-flash';
 
   // Supabase Tables
   static const String profilesTable = 'profiles';
