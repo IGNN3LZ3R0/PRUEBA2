@@ -273,8 +273,11 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.pets,
-                size: 80, color: AppTheme.textGrey.withOpacity(0.3)),
+            Icon(
+              Icons.pets,
+              size: 80,
+              color: AppTheme.textGrey.withValues(alpha: 0.3),
+            ),
             const SizedBox(height: 16),
             Text(
               'No hay mascotas disponibles',

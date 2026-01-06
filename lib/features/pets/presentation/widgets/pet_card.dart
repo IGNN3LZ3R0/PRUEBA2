@@ -56,8 +56,11 @@ class PetCard extends StatelessWidget {
                             ),
                             errorWidget: (context, url, error) => Container(
                               color: AppTheme.background,
-                              child: const Icon(Icons.pets,
-                                  size: 50, color: AppTheme.textGrey),
+                              child: const Icon(
+                                Icons.pets,
+                                size: 50,
+                                color: AppTheme.textGrey, // Removed deprecated withOpacity
+                              ),
                             ),
                           )
                         : Container(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import '../../../core/theme.dart';
 import '../../../core/supabase_client.dart';
 import '../../../core/constants.dart';
@@ -18,12 +17,16 @@ class MapPage extends StatefulWidget {
 class _MapPageState extends State<MapPage> {
   final _locationRepo = LocationRepository();
   final _mapController = MapController();
-  
+
   UserLocation? _userLocation;
-  List<ShelterMarker> _shelters = [];
+  List<ShelterMarker> _allShelters = []; // Todos los refugios de la BD
+  List<ShelterMarker> _nearbyShelters = []; // Solo refugios dentro del radio
   bool _isLoading = true;
   bool _followUser = true;
   ShelterMarker? _selectedShelter;
+
+  // Radio de búsqueda configurable
+  double _searchRadiusMeters = LocationRepository.DEFAULT_SEARCH_RADIUS_METERS;
 
   @override
   void initState() {
@@ -38,10 +41,13 @@ class _MapPageState extends State<MapPage> {
       // 1. Obtener ubicación del usuario
       _userLocation = await _locationRepo.getCurrentLocation();
 
-      // 2. Cargar refugios cercanos
+      // 2. Cargar todos los refugios
       await _loadShelters();
 
-      // 3. Centrar mapa en usuario
+      // 3. Filtrar por radio
+      _filterSheltersByRadius();
+
+      // 4. Centrar mapa en usuario
       if (_userLocation != null) {
         _mapController.move(_userLocation!.toLatLng(), 13.0);
       }
@@ -68,8 +74,7 @@ class _MapPageState extends State<MapPage> {
             address,
             phone,
             pets!refugio_id(id, latitude, longitude)
-          ''')
-          .eq('user_type', AppConstants.userTypeRefugio);
+          ''').eq('user_type', AppConstants.userTypeRefugio);
 
       final shelters = <ShelterMarker>[];
 
@@ -95,7 +100,7 @@ class _MapPageState extends State<MapPage> {
         }
       }
 
-      setState(() => _shelters = shelters);
+      setState(() => _allShelters = shelters);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -103,6 +108,21 @@ class _MapPageState extends State<MapPage> {
         );
       }
     }
+  }
+
+  void _filterSheltersByRadius() {
+    if (_userLocation == null) return;
+
+    setState(() {
+      _nearbyShelters = _locationRepo.filterByRadius(
+        items: _allShelters,
+        userLat: _userLocation!.latitude,
+        userLon: _userLocation!.longitude,
+        getItemLat: (shelter) => shelter.latitude,
+        getItemLon: (shelter) => shelter.longitude,
+        radiusInMeters: _searchRadiusMeters,
+      );
+    });
   }
 
   void _centerOnUser() {
@@ -159,11 +179,31 @@ class _MapPageState extends State<MapPage> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('Mapa de Refugios'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Refugios Cercanos'),
+            Text(
+              '${_nearbyShelters.length} en ${(_searchRadiusMeters / 1000).toStringAsFixed(0)} km',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.tune),
+            onPressed: _showRadiusSelector,
+            tooltip: 'Ajustar radio',
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadShelters,
+            onPressed: () {
+              _loadShelters();
+              _filterSheltersByRadius();
+            },
             tooltip: 'Actualizar',
           ),
         ],
@@ -184,6 +224,21 @@ class _MapPageState extends State<MapPage> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.petadoptprueba2b',
               ),
+
+              // 🆕 CÍRCULO DEL RADIO DE BÚSQUEDA
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: _userLocation!.toLatLng(),
+                    radius: _searchRadiusMeters,
+                    useRadiusInMeter: true,
+                    color: AppTheme.primary.withValues(alpha: 0.1),
+                    borderColor: AppTheme.primary.withValues(alpha: 0.5),
+                    borderStrokeWidth: 2,
+                  ),
+                ],
+              ),
+
               MarkerLayer(
                 markers: [
                   // Marcador del usuario
@@ -205,8 +260,8 @@ class _MapPageState extends State<MapPage> {
                       ),
                     ),
                   ),
-                  // Marcadores de refugios
-                  ..._shelters.map((shelter) {
+                  // 🆕 SOLO MARCADORES DENTRO DEL RADIO
+                  ..._nearbyShelters.map((shelter) {
                     final isSelected = _selectedShelter?.id == shelter.id;
                     return Marker(
                       point: shelter.toLatLng(),
@@ -218,8 +273,8 @@ class _MapPageState extends State<MapPage> {
                           children: [
                             Container(
                               decoration: BoxDecoration(
-                                color: AppTheme.secondary
-                                    .withValues(alpha: 0.2),
+                                color:
+                                    AppTheme.secondary.withValues(alpha: 0.2),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -258,6 +313,17 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
 
+          // 🆕 ALERTA SI NO HAY REFUGIOS CERCANOS
+          if (_nearbyShelters.isEmpty)
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: _NoSheltersAlert(
+                onExpandRadius: () => _changeSearchRadius(10),
+              ),
+            ),
+
           // Botón centrar en usuario
           Positioned(
             bottom: 100,
@@ -265,8 +331,7 @@ class _MapPageState extends State<MapPage> {
             child: FloatingActionButton(
               heroTag: 'center_user',
               onPressed: _centerOnUser,
-              backgroundColor:
-                  _followUser ? AppTheme.primary : Colors.white,
+              backgroundColor: _followUser ? AppTheme.primary : Colors.white,
               child: Icon(
                 Icons.my_location,
                 color: _followUser ? Colors.white : AppTheme.primary,
@@ -289,7 +354,7 @@ class _MapPageState extends State<MapPage> {
             ),
 
           // Lista de refugios (desplegable)
-          if (_shelters.isNotEmpty && _selectedShelter == null)
+          if (_nearbyShelters.isNotEmpty && _selectedShelter == null)
             Positioned(
               bottom: 16,
               left: 16,
@@ -299,7 +364,7 @@ class _MapPageState extends State<MapPage> {
                 backgroundColor: Colors.white,
                 icon: const Icon(Icons.list, color: AppTheme.primary),
                 label: Text(
-                  '${_shelters.length} refugios',
+                  '${_nearbyShelters.length} refugios',
                   style: const TextStyle(color: AppTheme.textDark),
                 ),
               ),
@@ -307,6 +372,80 @@ class _MapPageState extends State<MapPage> {
         ],
       ),
     );
+  }
+
+  void _showRadiusSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: AppTheme.background,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Radio de búsqueda',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textDark,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _RadiusOption(
+              label: '1 km - Muy cerca',
+              radiusKm: 1,
+              isSelected: _searchRadiusMeters == 1000,
+              onTap: () {
+                _changeSearchRadius(1);
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _RadiusOption(
+              label: '5 km - Cerca',
+              radiusKm: 5,
+              isSelected: _searchRadiusMeters == 5000,
+              onTap: () {
+                _changeSearchRadius(5);
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _RadiusOption(
+              label: '10 km - Medio',
+              radiusKm: 10,
+              isSelected: _searchRadiusMeters == 10000,
+              onTap: () {
+                _changeSearchRadius(10);
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _RadiusOption(
+              label: '20 km - Lejos',
+              radiusKm: 20,
+              isSelected: _searchRadiusMeters == 20000,
+              onTap: () {
+                _changeSearchRadius(20);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _changeSearchRadius(double newRadiusKm) {
+    setState(() {
+      _searchRadiusMeters = newRadiusKm * 1000;
+      _filterSheltersByRadius();
+    });
   }
 
   void _showSheltersList() {
@@ -346,9 +485,9 @@ class _MapPageState extends State<MapPage> {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _shelters.length,
+                itemCount: _nearbyShelters.length,
                 itemBuilder: (context, index) {
-                  final shelter = _shelters[index];
+                  final shelter = _nearbyShelters[index];
                   final distance = _locationRepo.calculateDistance(
                     _userLocation!.latitude,
                     _userLocation!.longitude,
@@ -409,6 +548,125 @@ class _MapPageState extends State<MapPage> {
                 },
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 🆕 WIDGET: Alerta cuando no hay refugios
+class _NoSheltersAlert extends StatelessWidget {
+  final VoidCallback onExpandRadius;
+
+  const _NoSheltersAlert({required this.onExpandRadius});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.pending.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline, color: Colors.white),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'No hay refugios cerca',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Intenta ampliar el radio de búsqueda',
+            style: TextStyle(color: Colors.white, fontSize: 14),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onExpandRadius,
+              icon: const Icon(Icons.zoom_out_map, size: 18),
+              label: const Text('Ampliar a 10 km'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: AppTheme.pending,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 🆕 WIDGET: Opción de radio
+class _RadiusOption extends StatelessWidget {
+  final String label;
+  final double radiusKm;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _RadiusOption({
+    required this.label,
+    required this.radiusKm,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primary : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primary
+                : AppTheme.textGrey.withValues(alpha: 0.3),
+            width: 2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.radio_button_checked,
+              color: isSelected ? Colors.white : AppTheme.textGrey,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : AppTheme.textDark,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            if (isSelected) const Icon(Icons.check, color: Colors.white),
           ],
         ),
       ),

@@ -3,6 +3,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'models.dart';
 
 class LocationRepository {
+  // ========== CONSTANTES ==========
+  static const double DEFAULT_SEARCH_RADIUS_METERS = 5000; // 5 km
+  static const double MIN_SEARCH_RADIUS_METERS = 1000; // 1 km
+  static const double MAX_SEARCH_RADIUS_METERS = 20000; // 20 km
+
   // ========== PERMISOS ==========
   Future<bool> requestLocationPermission() async {
     final status = await Permission.location.request();
@@ -81,6 +86,40 @@ class LocationRepository {
     } else {
       return '${(distanceInMeters / 1000).toStringAsFixed(1)} km';
     }
+  }
+
+  // ========== NUEVO: VERIFICAR SI ESTÁ DENTRO DEL RADIO ==========
+  /// Verifica si una ubicación está dentro del radio especificado
+  bool isWithinRadius({
+    required double userLat,
+    required double userLon,
+    required double targetLat,
+    required double targetLon,
+    double radiusInMeters = DEFAULT_SEARCH_RADIUS_METERS,
+  }) {
+    final distance = calculateDistance(userLat, userLon, targetLat, targetLon);
+    return distance <= radiusInMeters;
+  }
+
+  // ========== NUEVO: FILTRAR LISTA POR RADIO ==========
+  /// Filtra una lista de refugios por radio de búsqueda
+  List<T> filterByRadius<T>({
+    required List<T> items,
+    required double userLat,
+    required double userLon,
+    required double Function(T) getItemLat,
+    required double Function(T) getItemLon,
+    double radiusInMeters = DEFAULT_SEARCH_RADIUS_METERS,
+  }) {
+    return items.where((item) {
+      return isWithinRadius(
+        userLat: userLat,
+        userLon: userLon,
+        targetLat: getItemLat(item),
+        targetLon: getItemLon(item),
+        radiusInMeters: radiusInMeters,
+      );
+    }).toList();
   }
 
   // ========== ABRIR CONFIGURACIÓN ==========
