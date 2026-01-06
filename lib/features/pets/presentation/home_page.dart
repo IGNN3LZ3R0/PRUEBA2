@@ -40,8 +40,18 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _initializeNotifications();
     _loadUserAndPets();
-    _startNotifications();
+  }
+
+  // 🆕 INICIALIZAR NOTIFICACIONES PRIMERO
+  Future<void> _initializeNotifications() async {
+    try {
+      await NotificationService().initialize();
+      print('✅ Notificaciones inicializadas en HomePage');
+    } catch (e) {
+      print('❌ Error inicializando notificaciones: $e');
+    }
   }
 
   @override
@@ -58,7 +68,19 @@ class _HomePageState extends State<HomePage> {
       final userId = SupabaseClientManager.instance.userId;
       if (userId != null) {
         _currentUser = await _authRepository.getUserProfile(userId);
+        
+        // 🆕 INICIAR NOTIFICACIONES DESPUÉS DE TENER EL USUARIO
+        if (_currentUser != null) {
+          NotificationService().start(
+            _currentUser!.id,
+            _currentUser!.isRefugio,
+          );
+          
+          // Configurar callbacks
+          _setupNotificationCallbacks();
+        }
       }
+      
       await _loadPets();
     } catch (e) {
       if (mounted) {
@@ -73,77 +95,91 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _startNotifications() async {
-    await Future.delayed(const Duration(seconds: 1));
+  // 🆕 CONFIGURAR CALLBACKS DE NOTIFICACIONES
+  void _setupNotificationCallbacks() {
+    if (_currentUser == null) return;
 
-    if (_currentUser != null) {
-      NotificationService().start(
-        _currentUser!.id,
-        _currentUser!.isRefugio,
+    NotificationService().onNewRequest = (request) {
+      final pet = (request['pets'] as Map<String, dynamic>?)?['name'] ?? 'una mascota';
+      final adoptante = (request['profiles'] as Map<String, dynamic>?)?['full_name'] ?? 'Alguien';
+      
+      _showCustomSnackBar(
+        title: '🐾 Nueva Solicitud',
+        message: '$adoptante quiere adoptar a $pet',
+        color: Colors.blue,
+        icon: Icons.pets,
       );
+    };
 
-      NotificationService().onNewRequest = (request) {
-        if (mounted) {
-          _showNotificationSnackBar(
-            title: '🐾 Nueva solicitud',
-            message: '${request['adoptante_name']} quiere adoptar a tu mascota',
-            backgroundColor: Colors.blue,
-          );
-        }
-      };
-
-      NotificationService().onRequestStatusChanged = (request) {
-        if (mounted) {
-          final status = request['status'];
-          final isApproved = status == AppConstants.statusApproved;
-          
-          _showNotificationSnackBar(
-            title: isApproved ? '✅ ¡Solicitud aprobada!' : '❌ Solicitud rechazada',
-            message: isApproved 
-                ? 'Tu solicitud de adopción ha sido aprobada'
-                : 'Tu solicitud de adopción ha sido rechazada',
-            backgroundColor: isApproved ? Colors.green : Colors.red,
-          );
-        }
-      };
-    }
+    NotificationService().onRequestStatusChanged = (request) {
+      final pet = (request['pets'] as Map<String, dynamic>?)?['name'] ?? 'una mascota';
+      final isApproved = request['status'] == AppConstants.statusApproved;
+      
+      _showCustomSnackBar(
+        title: isApproved ? '✅ ¡Aprobada!' : '❌ Rechazada',
+        message: isApproved 
+            ? 'Tu solicitud para $pet fue aprobada'
+            : 'Tu solicitud para $pet fue rechazada',
+        color: isApproved ? Colors.green : Colors.red,
+        icon: isApproved ? Icons.check_circle : Icons.cancel,
+      );
+    };
   }
 
-  void _showNotificationSnackBar({
+  // 🆕 MOSTRAR SNACKBAR PERSONALIZADO
+  void _showCustomSnackBar({
     required String title,
     required String message,
-    required Color backgroundColor,
+    required Color color,
+    required IconData icon,
   }) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Colors.white,
+        content: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              message,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-        backgroundColor: backgroundColor,
-        duration: const Duration(seconds: 5),
+        backgroundColor: color,
+        duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        margin: const EdgeInsets.all(16),
+        elevation: 6,
         action: SnackBarAction(
           label: 'OK',
           textColor: Colors.white,
@@ -155,71 +191,38 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // 🆕 NUEVO: Método para simular notificaciones de prueba
-  void _simularNotificacionPrueba() {
-    if (_currentUser == null) return;
+void _simularNotificacionPrueba() async {
+  if (_currentUser == null) return;
 
-    // Simular diferentes tipos de notificaciones
-    final tiposNotificaciones = [
-      {
-        'title': '🐕 Nueva solicitud de adopción',
-        'message': 'María quiere adoptar a "Max"',
-        'color': Colors.blue,
-        'tipo': 'nueva_solicitud',
-      },
-      {
-        'title': '✅ ¡Solicitud aprobada!',
-        'message': 'Tu solicitud para adoptar a "Luna" fue aprobada',
-        'color': Colors.green,
-        'tipo': 'solicitud_aprobada',
-      },
-      {
-        'title': '❌ Solicitud rechazada',
-        'message': 'Tu solicitud para adoptar a "Rocky" fue rechazada',
-        'color': Colors.red,
-        'tipo': 'solicitud_rechazada',
-      },
-      {
-        'title': '💬 Nuevo mensaje',
-        'message': 'Tienes un nuevo mensaje sobre una adopción',
-        'color': Colors.purple,
-        'tipo': 'nuevo_mensaje',
-      },
-    ];
+  // Tipos de notificaciones
+  final tiposNotificaciones = [
+    {
+      'title': '🐕 Nueva solicitud de adopción',
+      'message': 'María quiere adoptar a "Max"',
+      'color': Colors.blue,
+    },
+    {
+      'title': '✅ ¡Solicitud aprobada!',
+      'message': 'Tu solicitud para adoptar a "Luna" fue aprobada',
+      'color': Colors.green,
+    },
+    {
+      'title': '❌ Solicitud rechazada',
+      'message': 'Tu solicitud para adoptar a "Rocky" fue rechazada',
+      'color': Colors.red,
+    },
+  ];
 
-    // Seleccionar una notificación aleatoria
-    final notificacion = tiposNotificaciones[
-        DateTime.now().millisecondsSinceEpoch % tiposNotificaciones.length];
+  final notificacion = tiposNotificaciones[
+      DateTime.now().millisecondsSinceEpoch % tiposNotificaciones.length];
 
-    _showNotificationSnackBar(
-      title: notificacion['title'] as String,
-      message: notificacion['message'] as String,
-      backgroundColor: notificacion['color'] as Color,
-    );
-
-    // También simular la llamada al servicio de notificaciones
-    if (_currentUser!.isRefugio) {
-      // Simular notificación para refugio
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '📡 Notificación de prueba enviada para refugio: ${notificacion['tipo']}'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    } else {
-      // Simular notificación para adoptante
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '📡 Notificación de prueba enviada para adoptante: ${notificacion['tipo']}'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-  }
+  // 🔥 MOSTRAR NOTIFICACIÓN REAL DEL SISTEMA
+  await NotificationService().showTestNotification(
+    notificacion['title'] as String,
+    notificacion['message'] as String,
+    notificacion['color'] as Color,
+  );
+}
 
   Future<void> _loadPets() async {
     try {
@@ -291,50 +294,54 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: _pages[_selectedIndex],
       bottomNavigationBar: _buildBottomNavigationBar(),
-      // 🆕 BOTÓN PARA SIMULAR NOTIFICACIONES (solo en desarrollo/testing)
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Botón principal para simular notificaciones
-          FloatingActionButton(
-            onPressed: _simularNotificacionPrueba,
-            backgroundColor: Colors.orange,
-            heroTag: 'simular_notificacion',
-            tooltip: 'Simular notificación de prueba',
-            child: const Icon(
-              Icons.notification_add,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Botón para verificar notificaciones reales
-          if (_currentUser != null)
-            FloatingActionButton(
-              onPressed: () {
-                NotificationService().checkNow(
-                  _currentUser!.id,
-                  _currentUser!.isRefugio,
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('🔍 Verificando notificaciones reales...'),
-                    duration: Duration(seconds: 2),
+      // 🆕 FLOATING ACTION BUTTON PARA PRUEBAS
+      floatingActionButton: _currentUser != null
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Botón grande para pruebas
+                FloatingActionButton.extended(
+                  onPressed: _simularNotificacionPrueba,
+                  backgroundColor: Colors.deepOrange,
+                  heroTag: 'test_notification',
+                  icon: const Icon(Icons.notification_important, color: Colors.white),
+                  label: const Text(
+                    'Probar',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
-                );
-              },
-              backgroundColor: AppTheme.primary,
-              heroTag: 'verificar_notificaciones',
-              tooltip: 'Verificar notificaciones reales',
-              mini: true,
-              child: const Icon(
-                Icons.notifications,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-        ],
-      ),
+                  tooltip: 'Simular notificación de prueba',
+                ),
+                const SizedBox(height: 12),
+                // Botón pequeño para verificar reales
+                FloatingActionButton(
+                  onPressed: () {
+                    if (_currentUser != null) {
+                      NotificationService().checkNow(
+                        _currentUser!.id,
+                        _currentUser!.isRefugio,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('🔍 Verificando notificaciones reales...'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  backgroundColor: AppTheme.primary,
+                  heroTag: 'check_notifications',
+                  tooltip: 'Verificar notificaciones reales',
+                  mini: true,
+                  child: const Icon(
+                    Icons.notifications,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            )
+          : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
@@ -348,7 +355,7 @@ class _HomePageState extends State<HomePage> {
           if (_currentUser != null)
             IconButton(
               icon: const Icon(Icons.notification_important),
-              tooltip: 'Enviar notificación de prueba',
+              tooltip: 'Simular notificación',
               onPressed: _simularNotificacionPrueba,
             ),
           if (_currentUser?.isRefugio == true)
@@ -373,7 +380,6 @@ class _HomePageState extends State<HomePage> {
                     _currentUser?.isRefugio == true ? 'Refugio' : 'Adoptante'),
                 enabled: false,
               ),
-              // 🆕 OPCIÓN EN MENÚ PARA SIMULAR NOTIFICACIONES
               if (_currentUser != null) ...[
                 const PopupMenuDivider(),
                 PopupMenuItem(
@@ -586,7 +592,7 @@ class _HomePageState extends State<HomePage> {
                 padding: const EdgeInsets.only(top: 20),
                 child: ElevatedButton.icon(
                   onPressed: _simularNotificacionPrueba,
-                  icon: const Icon(Icons.notification_add),
+                  icon: const Icon(Icons.notification_important),
                   label: const Text('Probar Notificaciones'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orange,

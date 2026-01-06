@@ -1,17 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:typed_data';
 import '../core/supabase_client.dart';
 import '../core/constants.dart';
 
-/// Sistema de notificaciones ULTRA SIMPLE
-/// - Sin plugins externos
-/// - Sin configuraciones complejas
-/// - Solo polling cada 15 segundos
-/// - Alertas visuales dentro de la app
+/// Sistema de notificaciones usando flutter_local_notifications
 class NotificationService {
   static final NotificationService _instance = NotificationService._();
   factory NotificationService() => _instance;
   NotificationService._();
+
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
 
   Timer? _timer;
   int _lastPendingCount = 0;
@@ -23,6 +25,182 @@ class NotificationService {
   Function(Map<String, dynamic> request)? onRequestStatusChanged;
 
   bool _isRunning = false;
+  bool _isInitialized = false;
+
+  // ========== INICIALIZAR PLUGIN ==========
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    try {
+      // Configuración Android
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+
+      // Configuración iOS
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
+
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
+
+      await _notifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
+      );
+
+      _isInitialized = true;
+      print('✅ NotificationService inicializado correctamente');
+
+      // Solicitar permisos automáticamente
+      await requestPermissions();
+      
+    } catch (e) {
+      print('❌ Error inicializando NotificationService: $e');
+    }
+  }
+
+  void _onNotificationTapped(NotificationResponse response) {
+    print('📱 Notificación presionada: ${response.payload}');
+  }
+
+  // ========== SOLICITAR PERMISOS ==========
+  Future<bool> requestPermissions() async {
+    try {
+      if (await Permission.notification.isDenied) {
+        final status = await Permission.notification.request();
+        if (status.isGranted) {
+          print('✅ Permisos de notificación concedidos');
+          return true;
+        }
+      }
+
+      final status = await Permission.notification.status;
+      return status.isGranted;
+    } catch (e) {
+      print('❌ Error solicitando permisos: $e');
+      return false;
+    }
+  }
+
+  // ========== MOSTRAR NOTIFICACIÓN DE PRUEBA ==========
+  Future<void> showTestNotification(String title, String message, Color color) async {
+    if (!_isInitialized) {
+      print('⚠️ NotificationService no inicializado. Llamando initialize()...');
+      await initialize();
+    }
+
+    try {
+      // Determinar color según el tipo
+      final androidColor = color == Colors.blue
+          ? const Color(0xFF2196F3)
+          : color == Colors.green
+              ? const Color(0xFF4CAF50)
+              : color == Colors.red
+                  ? const Color(0xFFF44336)
+                  : const Color(0xFFFF9800);
+
+      final androidDetails = AndroidNotificationDetails(
+        'petadopt_channel',
+        'PetAdopt Notifications',
+        channelDescription: 'Notificaciones de adopciones',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        playSound: true,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 250, 250, 250]),
+        color: androidColor,
+      );
+
+      final notificationDetails = NotificationDetails(android: androidDetails);
+
+      await _notifications.show(
+        DateTime.now().millisecondsSinceEpoch % 100000,
+        title,
+        message,
+        notificationDetails,
+        payload: 'test_notification',
+      );
+
+      print('✅ Notificación de prueba mostrada: $title');
+    } catch (e) {
+      print('❌ Error mostrando notificación de prueba: $e');
+    }
+  }
+
+  // ========== MOSTRAR NOTIFICACIÓN DE NUEVA SOLICITUD ==========
+  Future<void> showNewRequestNotification(String adoptanteName, String petName) async {
+    if (!_isInitialized) await initialize();
+
+    try {
+      final androidDetails = AndroidNotificationDetails(
+        'petadopt_channel',
+        'PetAdopt Notifications',
+        channelDescription: 'Notificaciones de adopciones',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        playSound: true,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 250, 250, 250]),
+        color: const Color(0xFF2196F3),
+      );
+
+      final notificationDetails = NotificationDetails(android: androidDetails);
+
+      await _notifications.show(
+        1,
+        '🐾 Nueva solicitud',
+        '$adoptanteName quiere adoptar a $petName',
+        notificationDetails,
+        payload: 'new_request',
+      );
+
+      print('✅ Notificación de nueva solicitud mostrada');
+    } catch (e) {
+      print('❌ Error: $e');
+    }
+  }
+
+  // ========== MOSTRAR NOTIFICACIÓN DE CAMBIO DE ESTADO ==========
+  Future<void> showStatusChangeNotification(String petName, bool isApproved) async {
+    if (!_isInitialized) await initialize();
+
+    try {
+      final androidDetails = AndroidNotificationDetails(
+        'petadopt_channel',
+        'PetAdopt Notifications',
+        channelDescription: 'Notificaciones de adopciones',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        playSound: true,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 500, 250, 500]),
+        color: isApproved ? const Color(0xFF4CAF50) : const Color(0xFFF44336),
+      );
+
+      final notificationDetails = NotificationDetails(android: androidDetails);
+
+      await _notifications.show(
+        2,
+        isApproved ? '✅ ¡Solicitud aprobada!' : '❌ Solicitud rechazada',
+        isApproved
+            ? 'Tu solicitud para adoptar a $petName fue aprobada'
+            : 'Tu solicitud para adoptar a $petName fue rechazada',
+        notificationDetails,
+        payload: 'status_change',
+      );
+
+      print('✅ Notificación de cambio de estado mostrada');
+    } catch (e) {
+      print('❌ Error: $e');
+    }
+  }
 
   // ========== INICIAR SERVICIO ==========
   void start(String userId, bool isRefugio) {
@@ -34,11 +212,9 @@ class NotificationService {
 
     print('🔔 Servicio de notificaciones iniciado (polling cada 15s)');
 
-    // Verificar inmediatamente
     _checkNotifications(userId, isRefugio);
 
-    // Luego cada 15 segundos
-    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
       _checkNotifications(userId, isRefugio);
     });
   }
@@ -56,7 +232,6 @@ class NotificationService {
     try {
       final field = isRefugio ? 'refugio_id' : 'adoptante_id';
 
-      // Obtener solicitudes pendientes
       final response = await SupabaseClientManager.instance.client
           .from(AppConstants.adoptionRequestsTable)
           .select('*')
@@ -66,7 +241,6 @@ class NotificationService {
       final requests = response as List<dynamic>;
       final currentRequests = requests.cast<Map<String, dynamic>>();
 
-      // Contar pendientes
       final pendingCount = currentRequests
           .where((r) => r['status'] == AppConstants.statusPending)
           .length;
@@ -79,6 +253,14 @@ class NotificationService {
           if (isNew && request['status'] == AppConstants.statusPending) {
             print('🆕 Nueva solicitud detectada: ${request['pet_name']}');
             onNewRequest?.call(request);
+            
+            // Mostrar notificación del sistema
+            if (isRefugio) {
+              await showNewRequestNotification(
+                request['adoptante_name'] ?? 'Usuario',
+                request['pet_name'] ?? 'mascota',
+              );
+            }
           }
         }
       }
@@ -96,6 +278,14 @@ class NotificationService {
               request['status'] != AppConstants.statusPending) {
             print('🔄 Estado cambiado: ${request['pet_name']} → ${request['status']}');
             onRequestStatusChanged?.call(request);
+            
+            // Mostrar notificación del sistema
+            if (!isRefugio) {
+              await showStatusChangeNotification(
+                request['pet_name'] ?? 'mascota',
+                request['status'] == AppConstants.statusApproved,
+              );
+            }
           }
         }
       }
@@ -215,228 +405,6 @@ class _NotificationBadgeState extends State<NotificationBadge> {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ========== WIDGET: Alerta Visual In-App ==========
-class InAppNotificationOverlay extends StatefulWidget {
-  final Widget child;
-
-  const InAppNotificationOverlay({super.key, required this.child});
-
-  @override
-  State<InAppNotificationOverlay> createState() => _InAppNotificationOverlayState();
-}
-
-class _InAppNotificationOverlayState extends State<InAppNotificationOverlay> 
-    with SingleTickerProviderStateMixin {
-  
-  final List<_NotificationItem> _notifications = [];
-  
-  @override
-  void initState() {
-    super.initState();
-    _setupListeners();
-  }
-
-  void _setupListeners() {
-    // Escuchar nuevas solicitudes
-    NotificationService().onNewRequest = (request) {
-      if (mounted) {
-        _showNotification(
-          title: '🐾 Nueva solicitud',
-          message: '${request['adoptante_name']} quiere adoptar a ${request['pet_name']}',
-          color: Colors.blue,
-        );
-      }
-    };
-
-    // Escuchar cambios de estado
-    NotificationService().onRequestStatusChanged = (request) {
-      if (mounted) {
-        final status = request['status'];
-        if (status == AppConstants.statusApproved) {
-          _showNotification(
-            title: '✅ ¡Solicitud Aprobada!',
-            message: 'Tu solicitud para adoptar a ${request['pet_name']} fue aprobada',
-            color: Colors.green,
-          );
-        } else if (status == AppConstants.statusRejected) {
-          _showNotification(
-            title: '❌ Solicitud Rechazada',
-            message: 'Tu solicitud para adoptar a ${request['pet_name']} fue rechazada',
-            color: Colors.red,
-          );
-        }
-      }
-    };
-  }
-
-  void _showNotification({
-    required String title,
-    required String message,
-    required Color color,
-  }) {
-    final item = _NotificationItem(
-      title: title,
-      message: message,
-      color: color,
-      timestamp: DateTime.now(),
-    );
-
-    setState(() {
-      _notifications.add(item);
-    });
-
-    // Auto-remover después de 4 segundos
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
-        setState(() {
-          _notifications.remove(item);
-        });
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        widget.child,
-        
-        // Overlay de notificaciones
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: SafeArea(
-            child: Column(
-              children: _notifications.map((item) {
-                return _NotificationCard(item: item);
-              }).toList(),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _NotificationItem {
-  final String title;
-  final String message;
-  final Color color;
-  final DateTime timestamp;
-
-  _NotificationItem({
-    required this.title,
-    required this.message,
-    required this.color,
-    required this.timestamp,
-  });
-}
-
-class _NotificationCard extends StatefulWidget {
-  final _NotificationItem item;
-
-  const _NotificationCard({required this.item});
-
-  @override
-  State<_NotificationCard> createState() => _NotificationCardState();
-}
-
-class _NotificationCardState extends State<_NotificationCard>
-    with SingleTickerProviderStateMixin {
-  
-  late AnimationController _controller;
-  late Animation<Offset> _slideAnimation;
-  late Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    ));
-
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(_controller);
-
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: widget.item.color,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.item.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.item.message,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.notifications_active,
-                color: Colors.white,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
