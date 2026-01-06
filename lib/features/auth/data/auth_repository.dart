@@ -148,7 +148,7 @@ class AuthRepository {
     try {
       await _supabase.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'https://tu-sitio-vercel.vercel.app/reset-password',
+        redirectTo: 'https://petadopt-web.onrender.com/reset-password',
       );
     } catch (e) {
       throw Exception('Error al recuperar contraseña: $e');

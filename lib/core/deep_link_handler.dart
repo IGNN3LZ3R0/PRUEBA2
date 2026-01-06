@@ -6,45 +6,32 @@ class DeepLinkHandler {
   factory DeepLinkHandler() => _instance;
   DeepLinkHandler._internal();
 
-  final _appLinks = AppLinks();
-  StreamSubscription? _sub;
-  
-  // Callback cuando se recibe un deep link
-  Function(Uri)? onDeepLink;
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _sub;
 
-  /// Inicializar listener de deep links
+  Function(Uri)? onDeepLink;
+  bool _initialized = false;
+
   void initialize() {
-    print('🔗 Inicializando Deep Link Handler...');
-    
-    // Manejar el link inicial (cuando la app se abre desde un link)
-    _handleInitialUri();
-    
-    // Escuchar links mientras la app está abierta
+    if (_initialized) return;
+    _initialized = true;
+
     _sub = _appLinks.uriLinkStream.listen(
-      (Uri uri) {
-        print('✅ Deep link recibido: $uri');
+      (uri) {
         onDeepLink?.call(uri);
-      },
-      onError: (err) {
-        print('❌ Error en deep link: $err');
       },
     );
+
+    _handleInitialUri();
   }
 
-  /// Manejar link inicial
   Future<void> _handleInitialUri() async {
-    try {
-      final uri = await _appLinks.getInitialLink();
-      if (uri != null) {
-        print('✅ Link inicial detectado: $uri');
-        onDeepLink?.call(uri);
-      }
-    } catch (e) {
-      print('❌ Error al obtener link inicial: $e');
+    final uri = await _appLinks.getInitialLink();
+    if (uri != null) {
+      Future.microtask(() => onDeepLink?.call(uri));
     }
   }
 
-  /// Limpiar listener
   void dispose() {
     _sub?.cancel();
   }

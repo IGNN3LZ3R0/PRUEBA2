@@ -30,6 +30,8 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  /* ========================= LOGIN ========================= */
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -49,15 +51,13 @@ class _LoginPageState extends State<LoginPage> {
         _showError('Error al iniciar sesión. Verifica tus credenciales.');
       }
     } catch (e) {
-      if (mounted) {
-        _showError(e.toString());
-      }
+      if (mounted) _showError(e.toString());
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  /* =====================  REGISTRO CON GOOGLE (AUN NO ESTA BIEN IMPLEMENTADO) ===================== */
 
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
@@ -75,8 +75,138 @@ class _LoginPageState extends State<LoginPage> {
         _showError('Error al iniciar sesión con Google: $e');
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /* =================== OLVIDO SU CONTRASEÑA =================== */
+
+  Future<void> _handleForgotPassword() async {
+    final emailController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock_reset,
+                  color: AppTheme.secondary,
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Recuperar Contraseña',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textGrey,
+                ),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  hintText: 'tu@email.com',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppTheme.secondary,
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancelar'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (emailController.text.trim().isEmpty) {
+                          _showError('Por favor ingresa tu email');
+                          return;
+                        }
+                        Navigator.pop(context, true);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.secondary,
+                      ),
+                      child: const Text('Enviar'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (result == true && emailController.text.trim().isNotEmpty) {
+      setState(() => _isLoading = true);
+
+      try {
+        await _authRepository.resetPassword(emailController.text.trim());
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('📧 Email Enviado'),
+              content: Text(
+                'Revisa tu bandeja de entrada en\n${emailController.text.trim()}',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Entendido'),
+                ),
+              ],
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) _showError('Error: $e');
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
@@ -114,16 +244,11 @@ class _LoginPageState extends State<LoginPage> {
                       color: AppTheme.primary,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.pets,
-                      size: 60,
-                      color: Colors.white,
-                    ),
+                    child: const Icon(Icons.pets, size: 60, color: Colors.white),
                   ),
 
                   const SizedBox(height: 32),
 
-                  // Título
                   Text(
                     AppStrings.welcome,
                     style: Theme.of(context).textTheme.headlineLarge,
@@ -134,60 +259,41 @@ class _LoginPageState extends State<LoginPage> {
 
                   Text(
                     AppStrings.loginToContinue,
-                    style: Theme.of(context).textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
 
                   const SizedBox(height: 40),
 
-                  // Email
                   CustomTextField(
                     label: AppStrings.email,
                     hint: 'tu@email.com',
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     prefixIcon: Icons.email_outlined,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingresa tu email';
-                      }
-                      if (!value.contains('@')) {
-                        return 'Email inválido';
-                      }
-                      return null;
-                    },
+                    validator: (value) =>
+                        value != null && value.contains('@')
+                            ? null
+                            : 'Email inválido',
                   ),
 
                   const SizedBox(height: 20),
 
-                  // Password
                   CustomTextField(
                     label: AppStrings.password,
                     hint: '••••••••',
                     controller: _passwordController,
                     isPassword: true,
                     prefixIcon: Icons.lock_outline,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingresa tu contraseña';
-                      }
-                      if (value.length < 6) {
-                        return 'La contraseña debe tener al menos 6 caracteres';
-                      }
-                      return null;
-                    },
+                    validator: (value) =>
+                        value != null && value.length >= 6
+                            ? null
+                            : 'Mínimo 6 caracteres',
                   ),
 
-                  const SizedBox(height: 12),
-
-                  // Olvidaste contraseña
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
-                        // TODO: Implementar recuperación de contraseña
-                        _showError('Función próximamente');
-                      },
+                      onPressed: _handleForgotPassword, // 🔥 CAMBIO
                       child: Text(
                         AppStrings.forgotPassword,
                         style: TextStyle(
@@ -200,7 +306,6 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 24),
 
-                  // Botón Login
                   CustomButton(
                     text: AppStrings.login,
                     onPressed: _handleLogin,
@@ -209,51 +314,25 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 24),
 
-                  // Divider
-                  Row(
-                    children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          AppStrings.orContinueWith,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      const Expanded(child: Divider()),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Google Sign In
                   CustomButton(
                     text: AppStrings.google,
                     onPressed: _handleGoogleSignIn,
-                    backgroundColor: Colors.white,
-                    textColor: AppTheme.textDark,
-                    icon: Icons.g_mobiledata,
                     isOutlined: true,
                   ),
 
                   const SizedBox(height: 32),
 
-                  // Registro
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        '${AppStrings.noAccount} ',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
+                      Text('${AppStrings.noAccount} '),
                       GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterPage(),
-                            ),
-                          );
-                        },
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterPage(),
+                          ),
+                        ),
                         child: Text(
                           AppStrings.register,
                           style: TextStyle(
