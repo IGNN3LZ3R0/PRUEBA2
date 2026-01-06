@@ -143,7 +143,6 @@ class AuthRepository {
     }
   }
 
-  // Recuperar contraseña
   Future<void> resetPassword(String email) async {
     try {
       await _supabase.auth.resetPasswordForEmail(
