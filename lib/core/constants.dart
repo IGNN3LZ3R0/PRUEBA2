@@ -4,9 +4,8 @@ class AppConstants {
   // API Keys (cargadas desde .env)
   static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
 
-  // 🔥 MODELO CORRECTO: gemini-1.5-flash (sin -latest)
-  static String get geminiModel =>
-      dotenv.env['GEMINI_MODEL'] ?? 'gemini-1.5-flash';
+  // 🔥 MODELO FIJO Y COMPATIBLE
+  static const String geminiModel = 'gemini-2.5-flash';
 
   // Supabase Tables
   static const String profilesTable = 'profiles';
