@@ -6,8 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/supabase_client.dart';
 import 'core/theme.dart';
 import 'core/deep_link_handler.dart';
-import 'services/notification_service.dart'; // 🔥 AÑADIR
-
+import 'services/notification_service.dart';
 import 'features/auth/presentation/login_page.dart';
 import 'features/pets/presentation/home_page.dart';
 
@@ -20,7 +19,7 @@ void main() async {
   await dotenv.load(fileName: ".env");
   await SupabaseClientManager.initialize();
 
-  // 🔥 INICIALIZAR NOTIFICACIONES AQUÍ (como en fitness_tracker)
+  // INICIALIZAR NOTIFICACIONES AQUÍ
   await NotificationService().initialize();
 
   // Inicializar deep link handler

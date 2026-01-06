@@ -26,7 +26,7 @@
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         
-        <!-- 🔥 ACTIVITY PRINCIPAL -->
+        <!--ACTIVIDADES PRINCIPALES -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -69,16 +69,22 @@
                     android:pathPrefix="/"/>
             </intent-filter>
         </activity>
-        
-        <!-- 🔥 RECEIVER PARA NOTIFICACIONES (opcional) -->
-        <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
-        <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+
+        <!--RECEIVER PARA NOTIFICACIONES -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
+
         
-        <!-- 🔥 ACTIVITY PARA NOTIFICACIONES -->
+        <!--ACTIVITY PARA NOTIFICACIONES -->
         <activity
             android:name="com.dexterous.flutterlocalnotifications.NotificationClickReceiverActivity"
             android:exported="true"
