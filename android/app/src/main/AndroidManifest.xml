@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
-    <!-- Permisos para Notificaciones Push (BONUS) -->
+    <!-- Permisos para Notificaciones Push -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     
@@ -24,7 +24,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -42,8 +42,8 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- DEEP LINK: petadopt://auth/callback -->
-            <intent-filter>
+            <!-- 🔥 DEEP LINK 1: petadopt://auth/callback -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
@@ -51,6 +51,17 @@
                     android:scheme="petadopt" 
                     android:host="auth"
                     android:pathPrefix="/callback"/>
+            </intent-filter>
+
+            <!-- 🔥 DEEP LINK 2: HTTPS (para Web) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data 
+                    android:scheme="https" 
+                    android:host="petadopt-web.onrender.com"
+                    android:pathPrefix="/"/>
             </intent-filter>
         </activity>
         
