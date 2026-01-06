@@ -41,12 +41,12 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadUserAndPets();
-    _startNotifications(); // 🆕 AGREGA ESTO
+    _startNotifications();
   }
 
   @override
   void dispose() {
-    NotificationService().stop(); // 🆕 LIMPIAR
+    NotificationService().stop();
     _searchController.dispose();
     super.dispose();
   }
@@ -73,9 +73,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // 🆕 NUEVO MÉTODO
   void _startNotifications() async {
-    // Esperar a que cargue el usuario
     await Future.delayed(const Duration(seconds: 1));
 
     if (_currentUser != null) {
@@ -84,7 +82,6 @@ class _HomePageState extends State<HomePage> {
         _currentUser!.isRefugio,
       );
 
-      // Configurar callbacks para mostrar alertas
       NotificationService().onNewRequest = (request) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -193,9 +190,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Lista de páginas
     final List<Widget> _pages = [
-      _buildHomePage(), // La página de mascotas
+      _buildHomePage(),
       const ChatPage(),
       const MapPage(),
       _currentUser?.isAdoptante == true
@@ -204,12 +200,45 @@ class _HomePageState extends State<HomePage> {
     ];
 
     return Scaffold(
-      body: _pages[_selectedIndex], // 🔥 Cambia solo el body
-      bottomNavigationBar: _buildBottomNavigationBar(), // 🔥 Siempre visible
+      body: _pages[_selectedIndex],
+      bottomNavigationBar: _buildBottomNavigationBar(),
+      // 🆕 AGREGADO: Floating Action Button para notificaciones manuales
+      floatingActionButton: _currentUser != null
+          ? FloatingActionButton(
+              onPressed: () {
+                // Verificación manual de notificaciones
+                NotificationService().checkNow(
+                  _currentUser!.id,
+                  _currentUser!.isRefugio,
+                );
+                
+                // Mostrar feedback visual
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.notifications_active, color: Colors.white),
+                        SizedBox(width: 10),
+                        Text('Verificando notificaciones...'),
+                      ],
+                    ),
+                    duration: Duration(seconds: 2),
+                    backgroundColor: AppTheme.primary,
+                  ),
+                );
+              },
+              backgroundColor: AppTheme.primary,
+              child: const Icon(
+                Icons.notifications,
+                color: Colors.white,
+              ),
+              heroTag: 'notification_fab',
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
-  // Extraer la página de mascotas a un método
   Widget _buildHomePage() {
     return Scaffold(
       appBar: AppBar(
@@ -259,7 +288,6 @@ class _HomePageState extends State<HomePage> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   if (constraints.maxWidth > 700) {
-                    // Wide layout: side panel for filters + main content
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -290,7 +318,6 @@ class _HomePageState extends State<HomePage> {
                       ],
                     );
                   } else {
-                    // Narrow layout: stacked column
                     return Column(
                       children: [
                         _buildSearchBar(),
@@ -302,15 +329,48 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
             ),
+      // 🆕 AGREGADO: Floating Action Button específico para la página de inicio
+      floatingActionButton: _currentUser != null
+          ? FloatingActionButton(
+              onPressed: () {
+                // Verificación manual de notificaciones
+                NotificationService().checkNow(
+                  _currentUser!.id,
+                  _currentUser!.isRefugio,
+                );
+                
+                // Mostrar feedback visual
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.notifications_active, color: Colors.white),
+                        SizedBox(width: 10),
+                        Text('Verificando notificaciones...'),
+                      ],
+                    ),
+                    duration: Duration(seconds: 2),
+                    backgroundColor: AppTheme.primary,
+                  ),
+                );
+              },
+              backgroundColor: AppTheme.primary,
+              child: const Icon(
+                Icons.notifications,
+                color: Colors.white,
+              ),
+              heroTag: 'home_notification_fab',
+            )
+          : null,
     );
   }
 
-  // Extraer el BottomNavigationBar
   Widget _buildBottomNavigationBar() {
     return BottomNavigationBar(
       currentIndex: _selectedIndex,
       onTap: (index) {
         setState(() => _selectedIndex = index);
+        // 🆕 VERIFICACIÓN MANUAL AL CAMBIAR DE PESTAÑA
         if (_currentUser != null) {
           NotificationService().checkNow(
             _currentUser!.id,

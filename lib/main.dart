@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/supabase_client.dart';
 import 'core/theme.dart';
@@ -17,43 +19,131 @@ void main() async {
   await dotenv.load(fileName: ".env");
   await SupabaseClientManager.initialize();
 
-  // 🔥 ASIGNAR CALLBACK ANTES
-  deepLinkHandler.onDeepLink = _handleDeepLinkStatic;
-
-  // 🔥 LUEGO inicializar
+  // Inicializar deep link handler
   deepLinkHandler.initialize();
 
   runApp(const MyApp());
 }
 
-/// 🔥 FUNCIÓN ESTÁTICA (NO DEPENDE DEL STATE)
-void _handleDeepLinkStatic(Uri uri) {
-  debugPrint('🔗 Deep link recibido: $uri');
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
 
-  final nav = navigatorKey.currentState;
-  final context = navigatorKey.currentContext;
-
-  if (nav == null || context == null) return;
-
-  // ✅ ÚNICO CALLBACK NECESARIO
-  if (uri.toString().contains('auth/callback')) {
-    nav.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomePage()),
-      (route) => false,
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Bienvenido a PetAdopt'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 3),
-      ),
-    );
-  }
+  @override
+  State<MyApp> createState() => _MyAppState();
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class _MyAppState extends State<MyApp> {
+  late StreamSubscription<AuthState> _authSubscription;
+  bool _processingDeepLink = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupDeepLinkHandler();
+    _setupAuthListener();
+  }
+
+  void _setupDeepLinkHandler() {
+    deepLinkHandler.onDeepLink = (Uri uri) async {
+      if (_processingDeepLink) return;
+      _processingDeepLink = true;
+
+      debugPrint('🔗 Deep link recibido: $uri');
+      
+      final nav = navigatorKey.currentState;
+      final context = navigatorKey.currentContext;
+
+      if (nav == null || context == null) {
+        _processingDeepLink = false;
+        return;
+      }
+
+      try {
+        // Manejar diferentes tipos de deep links
+        if (uri.toString().contains('auth/callback')) {
+          final params = uri.queryParameters;
+          final type = params['type'] ?? 'signup';
+          final success = params['success'] == 'true';
+
+          debugPrint('📱 Tipo de operación: $type');
+          debugPrint('✅ Éxito: $success');
+
+          if (type == 'recovery') {
+            // Si viene de recuperación de contraseña
+            if (success) {
+              // Mostrar mensaje de éxito
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('✅ Contraseña actualizada correctamente. Por favor, inicia sesión.'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            }
+            
+            // Siempre redirigir al login después de recuperación
+            // (para que el usuario inicie sesión con la nueva contraseña)
+            nav.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+              (route) => false,
+            );
+          } else {
+            // Login normal (verificación de email, etc.)
+            // Esperar un momento para que Supabase procese la sesión
+            await Future.delayed(const Duration(seconds: 1));
+            
+            // Verificar si hay sesión activa
+            final session = SupabaseClientManager.instance.client.auth.currentSession;
+            
+            if (session != null) {
+              // Redirigir al home
+              nav.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const HomePage()),
+                (route) => false,
+              );
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Bienvenido a PetAdopt'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            } else {
+              // Si no hay sesión, ir al login
+              nav.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (route) => false,
+              );
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('❌ Error procesando deep link: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        _processingDeepLink = false;
+      }
+    };
+  }
+
+  void _setupAuthListener() {
+    _authSubscription = SupabaseClientManager.instance.client.auth.onAuthStateChange.listen((data) {
+      debugPrint('🔐 Auth event: ${data.event}');
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    deepLinkHandler.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

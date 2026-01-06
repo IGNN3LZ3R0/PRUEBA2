@@ -38,7 +38,7 @@ class NotificationService {
     _checkNotifications(userId, isRefugio);
 
     // Luego cada 15 segundos
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
       _checkNotifications(userId, isRefugio);
     });
   }

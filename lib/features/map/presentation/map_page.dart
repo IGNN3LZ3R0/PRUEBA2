@@ -16,7 +16,7 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   final _locationRepo = LocationRepository();
-  final MapController _mapController = MapController(); // 🔥 INICIALIZAR AQUÍ
+  final MapController _mapController = MapController();
 
   UserLocation? _userLocation;
   List<ShelterMarker> _allShelters = [];
@@ -113,7 +113,6 @@ class _MapPageState extends State<MapPage> {
     });
   }
 
-  // MÉTODO SEGURO PARA MOVER EL MAPA
   void _centerOnUser() {
     if (_userLocation != null) {
       _mapController.move(_userLocation!.toLatLng(), 15.0);
@@ -131,6 +130,11 @@ class _MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double screenHeight = MediaQuery.of(context).size.height;
+    final bool isLargeScreen = screenWidth > 600;
+
     if (_isLoading) {
       return const Scaffold(
         body: LoadingWidget(message: 'Cargando mapa...'),
@@ -140,28 +144,42 @@ class _MapPageState extends State<MapPage> {
     if (_userLocation == null) {
       return Scaffold(
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.location_off,
-                  size: 80, color: AppTheme.textGrey),
-              const SizedBox(height: 16),
-              const Text('No se pudo obtener tu ubicación',
-                  style: TextStyle(fontSize: 16, color: AppTheme.textGrey)),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _initializeMap,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Reintentar'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.location_off,
+                    size: isLandscape ? 60 : 80, 
+                    color: AppTheme.textGrey),
+                SizedBox(height: isLandscape ? 12 : 16),
+                Text('No se pudo obtener tu ubicación',
+                    style: TextStyle(
+                      fontSize: isLandscape ? 14 : 16, 
+                      color: AppTheme.textGrey
+                    ),
+                    textAlign: TextAlign.center),
+                SizedBox(height: isLandscape ? 16 : 24),
+                ElevatedButton.icon(
+                  onPressed: _initializeMap,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reintentar'),
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isLandscape ? 20 : 24,
+                      vertical: isLandscape ? 12 : 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: isLandscape ? null : AppBar(
         automaticallyImplyLeading: false,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,7 +188,8 @@ class _MapPageState extends State<MapPage> {
             Text(
               '${_nearbyShelters.length} en ${(_searchRadiusMeters / 1000).toStringAsFixed(0)} km',
               style: TextStyle(
-                  fontSize: 12, color: Colors.white.withValues(alpha: 0.9)),
+                  fontSize: isLandscape ? 11 : 12, 
+                  color: Colors.white.withOpacity(0.9)),
             ),
           ],
         ),
@@ -190,168 +209,360 @@ class _MapPageState extends State<MapPage> {
           ),
         ],
       ),
-      body: Stack(
+      body: Row(
         children: [
-          // 🔥 MAPA SIN onMapReady
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _userLocation!.toLatLng(),
-              initialZoom: 13.0,
-              minZoom: 5.0,
-              maxZoom: 18.0,
-              onTap: (_, __) => setState(() => _selectedShelter = null),
+          // Panel lateral solo en landscape y pantallas grandes
+          if (isLandscape && _nearbyShelters.isNotEmpty && !isLargeScreen)
+            Container(
+              width: 300,
+              color: AppTheme.background,
+              child: _buildSheltersListPanel(),
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.petadoptprueba2b',
-              ),
-              CircleLayer(
-                circles: [
-                  CircleMarker(
-                    point: _userLocation!.toLatLng(),
-                    radius: _searchRadiusMeters,
-                    useRadiusInMeter: true,
-                    color: AppTheme.primary.withValues(alpha: 0.1),
-                    borderColor: AppTheme.primary.withValues(alpha: 0.5),
-                    borderStrokeWidth: 2,
+          
+          Expanded(
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _userLocation!.toLatLng(),
+                    initialZoom: isLandscape ? 12.0 : 13.0,
+                    minZoom: 5.0,
+                    maxZoom: 18.0,
+                    onTap: (_, __) => setState(() => _selectedShelter = null),
                   ),
-                ],
-              ),
-              MarkerLayer(
-                markers: [
-                  // Marcador del usuario
-                  Marker(
-                    point: _userLocation!.toLatLng(),
-                    width: 60,
-                    height: 60,
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.example.petadoptprueba2b',
+                    ),
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: _userLocation!.toLatLng(),
+                          radius: _searchRadiusMeters,
+                          useRadiusInMeter: true,
+                          color: AppTheme.primary.withOpacity(0.1),
+                          borderColor: AppTheme.primary.withOpacity(0.5),
+                          borderStrokeWidth: 2,
+                        ),
+                      ],
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: _userLocation!.toLatLng(),
+                          width: isLandscape ? 50 : 60,
+                          height: isLandscape ? 50 : 60,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.3),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Icon(Icons.my_location,
+                                  color: Colors.blue, 
+                                  size: isLandscape ? 24 : 28),
+                            ),
+                          ),
+                        ),
+                        ..._nearbyShelters.map((shelter) {
+                          final isSelected = _selectedShelter?.id == shelter.id;
+                          return Marker(
+                            point: shelter.toLatLng(),
+                            width: isSelected 
+                              ? (isLandscape ? 70 : 80) 
+                              : (isLandscape ? 50 : 60),
+                            height: isSelected 
+                              ? (isLandscape ? 70 : 80) 
+                              : (isLandscape ? 50 : 60),
+                            child: GestureDetector(
+                              onTap: () => _centerOnShelter(shelter),
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.secondary.withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.home,
+                                      color: AppTheme.secondary,
+                                      size: isSelected 
+                                        ? (isLandscape ? 36 : 40)
+                                        : (isLandscape ? 26 : 30),
+                                    ),
+                                  ),
+                                  if (shelter.petsCount > 0)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(
+                                          color: AppTheme.primary,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Text(
+                                          shelter.petsCount.toString(),
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: isLandscape ? 9 : 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ],
+                ),
+
+                // AppBar flotante para landscape
+                if (isLandscape)
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    right: 16,
                     child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withValues(alpha: 0.3),
-                        shape: BoxShape.circle,
+                        color: AppTheme.primary,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: const Center(
-                        child: Icon(Icons.my_location,
-                            color: Colors.blue, size: 28),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Refugios Cercanos',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '${_nearbyShelters.length} en ${(_searchRadiusMeters / 1000).toStringAsFixed(0)} km',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.tune, color: Colors.white),
+                            onPressed: _showRadiusSelector,
+                            tooltip: 'Ajustar radio',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh, color: Colors.white),
+                            onPressed: () {
+                              _loadShelters();
+                              _filterSheltersByRadius();
+                            },
+                            tooltip: 'Actualizar',
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  // Marcadores de refugios
-                  ..._nearbyShelters.map((shelter) {
-                    final isSelected = _selectedShelter?.id == shelter.id;
-                    return Marker(
-                      point: shelter.toLatLng(),
-                      width: isSelected ? 80 : 60,
-                      height: isSelected ? 80 : 60,
-                      child: GestureDetector(
-                        onTap: () => _centerOnShelter(shelter),
-                        child: Stack(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    AppTheme.secondary.withValues(alpha: 0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.home,
-                                color: AppTheme.secondary,
-                                size: isSelected ? 40 : 30,
-                              ),
-                            ),
-                            if (shelter.petsCount > 0)
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: AppTheme.primary,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Text(
-                                    shelter.petsCount.toString(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ],
-          ),
 
-          if (_nearbyShelters.isEmpty)
-            Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: _NoSheltersAlert(
-                onExpandRadius: () => _changeSearchRadius(10),
-              ),
-            ),
+                if (_nearbyShelters.isEmpty)
+                  Positioned(
+                    top: isLandscape ? 80 : 16,
+                    left: 16,
+                    right: isLandscape ? 316 : 16,
+                    child: _NoSheltersAlert(
+                      onExpandRadius: () => _changeSearchRadius(10),
+                    ),
+                  ),
 
-          // Botón centrar en usuario
-          Positioned(
-            bottom: 100,
-            right: 16,
-            child: FloatingActionButton(
-              heroTag: 'center_user',
-              onPressed: _centerOnUser,
-              backgroundColor: _followUser ? AppTheme.primary : Colors.white,
-              child: Icon(
-                Icons.my_location,
-                color: _followUser ? Colors.white : AppTheme.primary,
-              ),
-            ),
-          ),
-
-          if (_selectedShelter != null)
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: _ShelterInfoCard(
-                shelter: _selectedShelter!,
-                userLocation: _userLocation!,
-                locationRepo: _locationRepo,
-                onClose: () => setState(() => _selectedShelter = null),
-              ),
-            ),
-
-          if (_nearbyShelters.isNotEmpty && _selectedShelter == null)
-            Positioned(
-              bottom: 16,
-              left: 16,
-              child: FloatingActionButton.extended(
-                heroTag: 'show_list',
-                onPressed: _showSheltersList,
-                backgroundColor: Colors.white,
-                icon: const Icon(Icons.list, color: AppTheme.primary),
-                label: Text(
-                  '${_nearbyShelters.length} refugios',
-                  style: const TextStyle(color: AppTheme.textDark),
+                // Botón centrar en usuario - posición ajustada para landscape
+                Positioned(
+                  bottom: isLandscape ? 16 : 100,
+                  right: isLandscape ? 16 : 16,
+                  top: isLandscape && _selectedShelter == null ? null : null,
+                  child: FloatingActionButton(
+                    heroTag: 'center_user',
+                    onPressed: _centerOnUser,
+                    backgroundColor: _followUser ? AppTheme.primary : Colors.white,
+                    child: Icon(
+                      Icons.my_location,
+                      color: _followUser ? Colors.white : AppTheme.primary,
+                      size: isLandscape ? 24 : 28,
+                    ),
+                  ),
                 ),
-              ),
+
+                // Tarjeta de información del refugio - adaptada a landscape
+                if (_selectedShelter != null)
+                  Positioned(
+                    bottom: 16,
+                    left: isLandscape && _nearbyShelters.isNotEmpty ? 316 : 16,
+                    right: 16,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isLandscape ? 400 : double.infinity,
+                      ),
+                      child: _ShelterInfoCard(
+                        shelter: _selectedShelter!,
+                        userLocation: _userLocation!,
+                        locationRepo: _locationRepo,
+                        onClose: () => setState(() => _selectedShelter = null),
+                        isLandscape: isLandscape,
+                      ),
+                    ),
+                  ),
+
+                // Botón para mostrar lista - solo en vertical o sin panel lateral
+                if (!isLandscape && _nearbyShelters.isNotEmpty && _selectedShelter == null)
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    child: FloatingActionButton.extended(
+                      heroTag: 'show_list',
+                      onPressed: _showSheltersList,
+                      backgroundColor: Colors.white,
+                      icon: const Icon(Icons.list, color: AppTheme.primary),
+                      label: Text(
+                        '${_nearbyShelters.length} refugios',
+                        style: const TextStyle(color: AppTheme.textDark),
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
 
+  Widget _buildSheltersListPanel() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.primary,
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(8),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.list, color: Colors.white),
+              const SizedBox(width: 8),
+              const Text('Refugios',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  )),
+              const Spacer(),
+              Text('${_nearbyShelters.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  )),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: _nearbyShelters.length,
+            itemBuilder: (context, index) {
+              final shelter = _nearbyShelters[index];
+              final distance = _locationRepo.calculateDistance(
+                _userLocation!.latitude,
+                _userLocation!.longitude,
+                shelter.latitude,
+                shelter.longitude,
+              );
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppTheme.secondary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.home, color: AppTheme.secondary),
+                  ),
+                  title: Text(shelter.name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      )),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (shelter.address != null)
+                        Text(shelter.address!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.pets, size: 12, color: AppTheme.primary),
+                          const SizedBox(width: 4),
+                          Text('${shelter.petsCount}',
+                              style: const TextStyle(fontSize: 12)),
+                          const SizedBox(width: 8),
+                          Icon(Icons.location_on,
+                              size: 12, color: AppTheme.textGrey),
+                          const SizedBox(width: 4),
+                          Text(_locationRepo.formatDistance(distance),
+                              style: const TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    _centerOnShelter(shelter);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showRadiusSelector() {
+    final bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxWidth: isLandscape ? 400 : double.infinity,
+        maxHeight: MediaQuery.of(context).size.height * (isLandscape ? 0.7 : 0.6),
+      ),
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
         decoration: const BoxDecoration(
@@ -423,8 +634,9 @@ class _MapPageState extends State<MapPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.6,
+        height: MediaQuery.of(context).size.height * 0.7,
         decoration: const BoxDecoration(
           color: AppTheme.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -436,7 +648,7 @@ class _MapPageState extends State<MapPage> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppTheme.textGrey.withValues(alpha: 0.3),
+                color: AppTheme.textGrey.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -470,7 +682,7 @@ class _MapPageState extends State<MapPage> {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: AppTheme.secondary.withValues(alpha: 0.1),
+                          color: AppTheme.secondary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child:
@@ -516,7 +728,7 @@ class _MapPageState extends State<MapPage> {
   }
 }
 
-// Widgets auxiliares (sin cambios)
+// Widgets auxiliares actualizados
 class _NoSheltersAlert extends StatelessWidget {
   final VoidCallback onExpandRadius;
   const _NoSheltersAlert({required this.onExpandRadius});
@@ -526,11 +738,11 @@ class _NoSheltersAlert extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.pending.withValues(alpha: 0.95),
+        color: AppTheme.pending.withOpacity(0.95),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -599,7 +811,7 @@ class _RadiusOption extends StatelessWidget {
           border: Border.all(
             color: isSelected
                 ? AppTheme.primary
-                : AppTheme.textGrey.withValues(alpha: 0.3),
+                : AppTheme.textGrey.withOpacity(0.3),
             width: 2,
           ),
         ),
@@ -630,12 +842,14 @@ class _ShelterInfoCard extends StatelessWidget {
   final UserLocation userLocation;
   final LocationRepository locationRepo;
   final VoidCallback onClose;
+  final bool isLandscape;
 
   const _ShelterInfoCard({
     required this.shelter,
     required this.userLocation,
     required this.locationRepo,
     required this.onClose,
+    required this.isLandscape,
   });
 
   @override
@@ -649,7 +863,7 @@ class _ShelterInfoCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isLandscape ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -658,8 +872,8 @@ class _ShelterInfoCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(shelter.name,
-                      style: const TextStyle(
-                          fontSize: 18,
+                      style: TextStyle(
+                          fontSize: isLandscape ? 16 : 18,
                           fontWeight: FontWeight.bold,
                           color: AppTheme.textDark)),
                 ),
@@ -672,33 +886,38 @@ class _ShelterInfoCard extends StatelessWidget {
               ],
             ),
             if (shelter.address != null) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: isLandscape ? 6 : 8),
               Row(
                 children: [
-                  const Icon(Icons.location_on,
-                      size: 16, color: AppTheme.textGrey),
-                  const SizedBox(width: 4),
+                  Icon(Icons.location_on,
+                      size: isLandscape ? 14 : 16, 
+                      color: AppTheme.textGrey),
+                  SizedBox(width: isLandscape ? 4 : 6),
                   Expanded(
                     child: Text(shelter.address!,
-                        style: const TextStyle(
-                            fontSize: 14, color: AppTheme.textGrey)),
+                        style: TextStyle(
+                            fontSize: isLandscape ? 13 : 14, 
+                            color: AppTheme.textGrey)),
                   ),
                 ],
               ),
             ],
-            const SizedBox(height: 12),
-            Row(
+            SizedBox(height: isLandscape ? 8 : 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _InfoChip(
                   icon: Icons.pets,
                   label: '${shelter.petsCount} mascotas',
                   color: AppTheme.primary,
+                  isLandscape: isLandscape,
                 ),
-                const SizedBox(width: 8),
                 _InfoChip(
                   icon: Icons.location_on,
                   label: locationRepo.formatDistance(distance),
                   color: AppTheme.secondary,
+                  isLandscape: isLandscape,
                 ),
               ],
             ),
@@ -713,29 +932,38 @@ class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
+  final bool isLandscape;
 
   const _InfoChip({
     required this.icon,
     required this.label,
     required this.color,
+    this.isLandscape = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isLandscape ? 10 : 12,
+        vertical: isLandscape ? 5 : 6,
+      ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
+          Icon(icon, 
+              size: isLandscape ? 14 : 16, 
+              color: color),
+          SizedBox(width: isLandscape ? 3 : 4),
           Text(label,
               style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+                  fontSize: isLandscape ? 11 : 12,
+                  fontWeight: FontWeight.w600, 
+                  color: color)),
         ],
       ),
     );
